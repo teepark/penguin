@@ -1,6 +1,7 @@
 #include <Python.h>
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
+#include <sys/signalfd.h>
 
 
 static PyObject *
@@ -117,6 +118,58 @@ python_timerfd_gettime(PyObject *module, PyObject *args) {
     return unwrap_timer(&spec);
 }
 
+static PyObject *
+python_signalfd(PyObject *module, PyObject *args) {
+    int fd, flags, signum;
+    sigset_t mask;
+    PyObject *signals, *iter, *item, *pysignum, *result;
+
+    if (!PyArg_ParseTuple(args, "iOi", &fd, &signals, &flags))
+        return NULL;
+
+    if (NULL == (iter = PyObject_GetIter(signals)))
+        return NULL;
+
+    sigemptyset(&mask);
+
+    while ((item = PyIter_Next(iter))) {
+        if (NULL == (pysignum = PyNumber_Int(item))) {
+            Py_DECREF(iter);
+            Py_DECREF(item);
+            return NULL;
+        }
+
+        if (-1 == (signum = PyInt_AsLong(pysignum)) && PyErr_Occurred()) {
+            Py_DECREF(iter);
+            Py_DECREF(item);
+            Py_DECREF(pysignum);
+            return NULL;
+        }
+
+        if (sigaddset(&mask, signum) < 0) {
+            Py_DECREF(iter);
+            Py_DECREF(item);
+            Py_DECREF(pysignum);
+            PyErr_SetFromErrno(PyExc_OSError);
+            return NULL;
+        }
+
+        Py_DECREF(pysignum);
+        Py_DECREF(item);
+    }
+    Py_DECREF(iter);
+
+    if ((fd = signalfd(fd, &mask, flags)) < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    if (NULL == (result = PyInt_FromLong((long)fd)))
+        return NULL;
+
+    return result;
+}
+
 
 static PyMethodDef methods[] = {
     {"eventfd", python_eventfd, METH_VARARGS,
@@ -128,6 +181,9 @@ static PyMethodDef methods[] = {
         "arm or disarm the timer referred to by a file descriptor"},
     {"timerfd_gettime", python_timerfd_gettime, METH_VARARGS,
         "return the setting of the timer referred to by a file descriptor"},
+
+    {"signalfd", python_signalfd, METH_VARARGS,
+        "create a file descriptor that can be used to accept signals"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -149,4 +205,7 @@ initeventfs(void) {
     PyModule_AddIntConstant(module, "TFD_CLOEXEC", TFD_CLOEXEC);
 
     PyModule_AddIntConstant(module, "TFD_TIMER_ABSTIME", TFD_TIMER_ABSTIME);
+
+    PyModule_AddIntConstant(module, "SFD_NONBLOCK", SFD_NONBLOCK);
+    PyModule_AddIntConstant(module, "SFD_CLOEXEC", SFD_CLOEXEC);
 }
