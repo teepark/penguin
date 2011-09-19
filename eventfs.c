@@ -137,7 +137,7 @@ python_timerfd_create(PyObject *module, PyObject *args) {
     return PyInt_FromLong((long)fd);
 }
 
-static char *timerfd_settime_kwargs[] = {"interval", "absolute", NULL}
+static char *timerfd_settime_kwargs[] = {"interval", "absolute", NULL};
 
 static PyObject *
 python_timerfd_settime(PyObject *module, PyObject *args, PyObject *kwargs) {
@@ -153,7 +153,7 @@ python_timerfd_settime(PyObject *module, PyObject *args, PyObject *kwargs) {
 
     wrap_timer(timeout, interval, &inspec);
 
-    if PyObject_IsTrue(absolute)
+    if (PyObject_IsTrue(absolute))
         flags |= TFD_TIMER_ABSTIME;
 
     if (timerfd_settime(fd, flags, &inspec, &outspec) < 0) {
@@ -352,7 +352,20 @@ python_read_signalfd(PyObject *module, PyObject *args) {
 static PyMethodDef methods[] = {
 #ifdef __NR_eventfd
     {"eventfd", python_eventfd, METH_VARARGS,
-        "create a file descriptor for event notification"},
+        "create a file descriptor for event notification\n\
+\n\
+see `man 2 eventfd` for more complete documentation\n\
+\n\
+:param initval: where to initialize the new eventfd's counter\n\
+:type initval: non-negative int\n\
+\n\
+:param flags:\n\
+    **(optional)** flags to apply for the new file descriptor (see the\n\
+    eventfd man page for details on the available flags)\n\
+\n\
+    this argument won't be available on kernels without eventfd2(2)\n\
+:type flags: int"},
+
     {"read_eventfd", python_read_eventfd, METH_VARARGS,
         "read the counter out of an eventfd-created file descriptor"},
     {"write_eventfd", python_write_eventfd, METH_VARARGS,
@@ -362,7 +375,7 @@ static PyMethodDef methods[] = {
 #ifdef __NR_timerfd_create
     {"timerfd_create", python_timerfd_create, METH_VARARGS,
         "create a new timer and return a file descriptor that refers to it"},
-    {"timerfd_settime", python_timerfd_settime, METH_VARARGS | METH_KEYWORDS,
+    {"timerfd_settime", (PyCFunction)python_timerfd_settime, METH_VARARGS | METH_KEYWORDS,
         "arm or disarm the timer referred to by a file descriptor"},
     {"timerfd_gettime", python_timerfd_gettime, METH_VARARGS,
         "return the setting of the timer referred to by a file descriptor"},
