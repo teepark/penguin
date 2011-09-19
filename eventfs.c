@@ -2,11 +2,85 @@
 
 #include <signal.h>
 #include <unistd.h>
+#include <asm/unistd.h>
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <sys/signalfd.h>
 
 
+#ifdef __NR_eventfd
+static PyObject *
+python_eventfd(PyObject *module, PyObject *args) {
+    unsigned int initval;
+    int fd, flags;
+
+#ifdef __NR_eventfd2
+    if (!PyArg_ParseTuple(args, "Ii", &initval, &flags))
+#else
+    flags = 0;
+    if (!PyArg_ParseTuple(args, "I", &initval))
+#endif
+        return NULL;
+
+    if (!(fd = eventfd(initval, flags))) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)fd);
+}
+
+static PyObject *
+python_read_eventfd(PyObject *module, PyObject *args) {
+    int fd;
+    ssize_t length;
+    unsigned PY_LONG_LONG val;
+
+    if (!PyArg_ParseTuple(args, "i", &fd))
+        return NULL;
+
+    length = read(fd, (void *)&val, 8);
+
+    if (length < 0) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        return NULL;
+    }
+
+    if (length != 8) {
+        PyErr_SetObject(PyExc_OSError, PyInt_FromLong((long)EIO));
+        return NULL;
+    }
+
+    return PyLong_FromUnsignedLongLong(val);
+}
+
+static PyObject *
+python_write_eventfd(PyObject *module, PyObject *args) {
+    int fd;
+    ssize_t length;
+    unsigned PY_LONG_LONG val;
+
+    if (!PyArg_ParseTuple(args, "iK", &fd, &val))
+        return NULL;
+
+    length = write(fd, (const void *)&val, 8);
+
+    if (length < 0) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        return NULL;
+    }
+
+    if (length != 8) {
+        PyErr_SetObject(PyExc_OSError, PyInt_FromLong((long)EIO));
+        return NULL;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+#endif /* __NR_eventfd */
+
+#ifdef __NR_timerfd_create
 static PyObject *
 unwrap_timer(const struct itimerspec *spec) {
     double timeout, interval;
@@ -48,6 +122,58 @@ wrap_timer(double timeout, double interval, struct itimerspec *spec) {
     spec->it_interval.tv_nsec = (long)(interval * 1E9);
 }
 
+static PyObject *
+python_timerfd_create(PyObject *module, PyObject *args) {
+    int clockid, flags, fd;
+
+    if (!PyArg_ParseTuple(args, "ii", &clockid, &flags))
+        return NULL;
+
+    if (!(fd = timerfd_create(clockid, flags))) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)fd);
+}
+
+static PyObject *
+python_timerfd_settime(PyObject *module, PyObject *args) {
+    int fd, flags;
+    double timeout, interval = 0;
+    struct itimerspec inspec, outspec;
+
+    if (!PyArg_ParseTuple(args, "iid|d", &fd, &flags, &timeout, &interval))
+        return NULL;
+
+    wrap_timer(timeout, interval, &inspec);
+
+    if (timerfd_settime(fd, flags, &inspec, &outspec) < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return unwrap_timer(&outspec);
+}
+
+static PyObject *
+python_timerfd_gettime(PyObject *module, PyObject *args) {
+    int fd;
+    struct itimerspec spec;
+
+    if (!PyArg_ParseTuple(args, "i", &fd))
+        return NULL;
+
+    if (timerfd_gettime(fd, &spec) < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return unwrap_timer(&spec);
+}
+#endif /* __NR_timerfd_create */
+
+#if _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
 #define SIG_COUNT 31
 static int CHECK_SIGNALS[] = {
     SIGABRT, SIGALRM, SIGBUS,  SIGCHLD,   SIGCLD,   SIGCONT, SIGFPE,  SIGHUP,
@@ -142,122 +268,28 @@ unwrap_siginfo(struct signalfd_siginfo *info) {
     return result;
 }
 
-
 static PyObject *
-python_eventfd(PyObject *module, PyObject *args) {
-    unsigned int initval;
-    int flags, fd;
+python_sigprocmask(PyObject *module, PyObject *args) {
+    int how;
+    sigset_t newmask, oldmask;
+    PyObject *signals;
 
-    if (!PyArg_ParseTuple(args, "Ii", &initval, &flags))
+    sigemptyset(&newmask);
+    sigemptyset(&oldmask);
+
+    if (!PyArg_ParseTuple(args, "iO", &how, &signals))
         return NULL;
 
-    if (!(fd = eventfd(initval, flags))) {
-        PyErr_SetFromErrno(PyExc_OSError);
+    if (wrap_sigset(&newmask, signals))
         return NULL;
-    }
 
-    return PyInt_FromLong((long)fd);
+    if (sigprocmask(how, &newmask, &oldmask))
+        return NULL;
+
+    return unwrap_sigset(&oldmask);
 }
 
-static PyObject *
-python_read_eventfd(PyObject *module, PyObject *args) {
-    int fd;
-    ssize_t length;
-    unsigned PY_LONG_LONG val;
-
-    if (!PyArg_ParseTuple(args, "i", &fd))
-        return NULL;
-
-    length = read(fd, (void *)&val, 8);
-
-    if (length < 0) {
-        PyErr_SetFromErrno(PyExc_IOError);
-        return NULL;
-    }
-
-    if (length != 8) {
-        PyErr_SetObject(PyExc_OSError, PyInt_FromLong((long)EIO));
-        return NULL;
-    }
-
-    return PyLong_FromUnsignedLongLong(val);
-}
-
-static PyObject *
-python_write_eventfd(PyObject *module, PyObject *args) {
-    int fd;
-    ssize_t length;
-    unsigned PY_LONG_LONG val;
-
-    if (!PyArg_ParseTuple(args, "iK", &fd, &val))
-        return NULL;
-
-    length = write(fd, (const void *)&val, 8);
-
-    if (length < 0) {
-        PyErr_SetFromErrno(PyExc_IOError);
-        return NULL;
-    }
-
-    if (length != 8) {
-        PyErr_SetObject(PyExc_OSError, PyInt_FromLong((long)EIO));
-        return NULL;
-    }
-
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject *
-python_timerfd_create(PyObject *module, PyObject *args) {
-    int clockid, flags, fd;
-
-    if (!PyArg_ParseTuple(args, "ii", &clockid, &flags))
-        return NULL;
-
-    if (!(fd = timerfd_create(clockid, flags))) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        return NULL;
-    }
-
-    return PyInt_FromLong((long)fd);
-}
-
-static PyObject *
-python_timerfd_settime(PyObject *module, PyObject *args) {
-    int fd, flags;
-    double timeout, interval = 0;
-    struct itimerspec inspec, outspec;
-
-    if (!PyArg_ParseTuple(args, "iid|d", &fd, &flags, &timeout, &interval))
-        return NULL;
-
-    wrap_timer(timeout, interval, &inspec);
-
-    if (timerfd_settime(fd, flags, &inspec, &outspec) < 0) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        return NULL;
-    }
-
-    return unwrap_timer(&outspec);
-}
-
-static PyObject *
-python_timerfd_gettime(PyObject *module, PyObject *args) {
-    int fd;
-    struct itimerspec spec;
-
-    if (!PyArg_ParseTuple(args, "i", &fd))
-        return NULL;
-
-    if (timerfd_gettime(fd, &spec) < 0) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        return NULL;
-    }
-
-    return unwrap_timer(&spec);
-}
-
+#ifdef __NR_signalfd
 static PyObject *
 python_signalfd(PyObject *module, PyObject *args) {
     int fd, flags;
@@ -266,7 +298,12 @@ python_signalfd(PyObject *module, PyObject *args) {
 
     sigemptyset(&mask);
 
+#ifdef __NR_signalfd4
     if (!PyArg_ParseTuple(args, "iOi", &fd, &signals, &flags))
+#else
+    flags = 0;
+    if (!PyArg_ParseTuple(args, "iO", &fd, &signals))
+#endif
         return NULL;
 
     if (wrap_sigset(&mask, signals))
@@ -301,51 +338,39 @@ python_read_signalfd(PyObject *module, PyObject *args) {
 
     return unwrap_siginfo(&info);
 }
-
-static PyObject *
-python_sigprocmask(PyObject *module, PyObject *args) {
-    int how;
-    sigset_t newmask, oldmask;
-    PyObject *signals;
-
-    sigemptyset(&newmask);
-    sigemptyset(&oldmask);
-
-    if (!PyArg_ParseTuple(args, "iO", &how, &signals))
-        return NULL;
-
-    if (wrap_sigset(&newmask, signals))
-        return NULL;
-
-    if (sigprocmask(how, &newmask, &oldmask))
-        return NULL;
-
-    return unwrap_sigset(&oldmask);
-}
+#endif /* __NR_signalfd */
+#endif /* posix sigprocmask test */
 
 
 static PyMethodDef methods[] = {
+#ifdef __NR_eventfd
     {"eventfd", python_eventfd, METH_VARARGS,
         "create a file descriptor for event notification"},
     {"read_eventfd", python_read_eventfd, METH_VARARGS,
         "read the counter out of an eventfd-created file descriptor"},
     {"write_eventfd", python_write_eventfd, METH_VARARGS,
         "add a value into an eventfd-created file descriptor"},
+#endif
 
+#ifdef __NR_timerfd_create
     {"timerfd_create", python_timerfd_create, METH_VARARGS,
         "create a new timer and return a file descriptor that refers to it"},
     {"timerfd_settime", python_timerfd_settime, METH_VARARGS,
         "arm or disarm the timer referred to by a file descriptor"},
     {"timerfd_gettime", python_timerfd_gettime, METH_VARARGS,
         "return the setting of the timer referred to by a file descriptor"},
+#endif
 
+#if _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
+    {"sigprocmask", python_sigprocmask, METH_VARARGS,
+        "examine and change blocked signals"},
+#ifdef __NR_signalfd
     {"signalfd", python_signalfd, METH_VARARGS,
         "create a file descriptor that can be used to accept signals"},
     {"read_signalfd", python_read_signalfd, METH_VARARGS,
         "read signal info from a file descriptor created with signalfd"},
-
-    {"sigprocmask", python_sigprocmask, METH_VARARGS,
-        "examine and change blocked signals"},
+#endif
+#endif
 
     {NULL, NULL, 0, NULL}
 };
