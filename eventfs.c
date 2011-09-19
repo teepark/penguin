@@ -357,21 +357,43 @@ initeventfs(void) {
 
     module = Py_InitModule("eventfs", methods);
 
+#ifdef EFD_NONBLOCK
     PyModule_AddIntConstant(module, "EFD_NONBLOCK", EFD_NONBLOCK);
+#endif
+#ifdef EFD_CLOEXEC
     PyModule_AddIntConstant(module, "EFD_CLOEXEC", EFD_CLOEXEC);
-
+#endif
+#ifdef EFD_SEMAPHORE
+    PyModule_AddIntConstant(module, "EFD_SEMAPHORE", EFD_SEMAPHORE);
+#endif
+#ifdef CLOCK_REALTIME
     PyModule_AddIntConstant(module, "CLOCK_REALTIME", CLOCK_REALTIME);
+#endif
+#ifdef CLOCK_MONOTONIC
     PyModule_AddIntConstant(module, "CLOCK_MONOTONIC", CLOCK_MONOTONIC);
-
+#endif
+#ifdef TFD_NONBLOCK
     PyModule_AddIntConstant(module, "TFD_NONBLOCK", TFD_NONBLOCK);
+#endif
+#ifdef TFD_CLOEXEC
     PyModule_AddIntConstant(module, "TFD_CLOEXEC", TFD_CLOEXEC);
-
+#endif
+#ifdef TFD_TIMER_ABSTIME
     PyModule_AddIntConstant(module, "TFD_TIMER_ABSTIME", TFD_TIMER_ABSTIME);
-
+#endif
+#ifdef SFD_NONBLOCK
     PyModule_AddIntConstant(module, "SFD_NONBLOCK", SFD_NONBLOCK);
+#endif
+#ifdef SFD_CLOEXEC
     PyModule_AddIntConstant(module, "SFD_CLOEXEC", SFD_CLOEXEC);
-
+#endif
+#ifdef SIG_BLOCK
     PyModule_AddIntConstant(module, "SIG_BLOCK", SIG_BLOCK);
+#endif
+#ifdef SIG_UNBLOCK
     PyModule_AddIntConstant(module, "SIG_UNBLOCK", SIG_UNBLOCK);
+#endif
+#ifdef SIG_SETMASK
     PyModule_AddIntConstant(module, "SIG_SETMASK", SIG_SETMASK);
+#endif
 }
