@@ -2,6 +2,7 @@
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <sys/signalfd.h>
+#include <signal.h>
 
 
 static PyObject *
@@ -83,6 +84,78 @@ wrap_timer(double timeout, double interval, struct itimerspec *spec) {
     spec->it_interval.tv_nsec = (long)(interval * 1E9);
 }
 
+static int CHECK_SIGNALS[] = {
+    SIGABRT, SIGALRM, SIGBUS,  SIGCHLD,   SIGCLD,   SIGCONT, SIGFPE, SIGHUP,
+    SIGILL,  SIGINT,  SIGIO,   SIGIOT,    SIGPIPE,  SIGPOLL, SIGPROF, SIGPWR,
+    SIGQUIT, SIGSEGV, SIGSYS,  SIGTERM,   SIGTRAP,  SIGTSTP, SIGTTIN, SIGTTOU,
+    SIGURG,  SIGUSR1, SIGUSR2, SIGVTALRM, SIGWINCH, SIGXCPU, SIGXFSZ };
+#define SIG_COUNT 31
+
+static PyObject *
+unwrap_sigset(sigset_t *set) {
+    PyObject *signals, *num;
+    int i;
+
+    if (NULL == (signals = PyList_New(0)))
+        return NULL;
+
+    for (i = 0; i < SIG_COUNT; ++i) {
+        if (sigismember(set, CHECK_SIGNALS[i])) {
+            if (NULL == (num = PyInt_FromLong((long)(CHECK_SIGNALS[i])))) {
+                Py_DECREF(signals);
+                return NULL;
+            }
+
+            if (PyList_Append(signals, num)) {
+                Py_DECREF(signals);
+                Py_DECREF(num);
+                return NULL;
+            }
+            Py_DECREF(num);
+        }
+    }
+
+    return signals;
+}
+
+static int
+wrap_sigset(sigset_t *set, PyObject *signals) {
+    int signum;
+    PyObject *iter, *item, *pysignum;
+
+    if (NULL == (iter = PyObject_GetIter(signals)))
+        return -1;
+
+    while ((item = PyIter_Next(iter))) {
+        if (NULL == (pysignum = PyNumber_Int(item))) {
+            Py_DECREF(iter);
+            Py_DECREF(item);
+            return -1;
+        }
+
+        if (-1 == (signum = PyInt_AsLong(pysignum)) && PyErr_Occurred()) {
+            Py_DECREF(iter);
+            Py_DECREF(item);
+            Py_DECREF(pysignum);
+            return -1;
+        }
+
+        if (sigaddset(set, signum) < 0) {
+            Py_DECREF(iter);
+            Py_DECREF(item);
+            Py_DECREF(pysignum);
+            PyErr_SetFromErrno(PyExc_OSError);
+            return -1;
+        }
+
+        Py_DECREF(item);
+        Py_DECREF(pysignum);
+    }
+    Py_DECREF(iter);
+
+    return 0;
+}
+
 static PyObject *
 python_timerfd_settime(PyObject *module, PyObject *args) {
     int fd, flags;
@@ -120,44 +193,17 @@ python_timerfd_gettime(PyObject *module, PyObject *args) {
 
 static PyObject *
 python_signalfd(PyObject *module, PyObject *args) {
-    int fd, flags, signum;
+    int fd, flags;
     sigset_t mask;
-    PyObject *signals, *iter, *item, *pysignum, *result;
+    PyObject *signals, *result;
+
+    sigemptyset(&mask);
 
     if (!PyArg_ParseTuple(args, "iOi", &fd, &signals, &flags))
         return NULL;
 
-    if (NULL == (iter = PyObject_GetIter(signals)))
+    if (wrap_sigset(&mask, signals))
         return NULL;
-
-    sigemptyset(&mask);
-
-    while ((item = PyIter_Next(iter))) {
-        if (NULL == (pysignum = PyNumber_Int(item))) {
-            Py_DECREF(iter);
-            Py_DECREF(item);
-            return NULL;
-        }
-
-        if (-1 == (signum = PyInt_AsLong(pysignum)) && PyErr_Occurred()) {
-            Py_DECREF(iter);
-            Py_DECREF(item);
-            Py_DECREF(pysignum);
-            return NULL;
-        }
-
-        if (sigaddset(&mask, signum) < 0) {
-            Py_DECREF(iter);
-            Py_DECREF(item);
-            Py_DECREF(pysignum);
-            PyErr_SetFromErrno(PyExc_OSError);
-            return NULL;
-        }
-
-        Py_DECREF(pysignum);
-        Py_DECREF(item);
-    }
-    Py_DECREF(iter);
 
     if ((fd = signalfd(fd, &mask, flags)) < 0) {
         PyErr_SetFromErrno(PyExc_OSError);
@@ -168,6 +214,27 @@ python_signalfd(PyObject *module, PyObject *args) {
         return NULL;
 
     return result;
+}
+
+static PyObject *
+python_sigprocmask(PyObject *module, PyObject *args) {
+    int how;
+    sigset_t newmask, oldmask;
+    PyObject *signals;
+
+    sigemptyset(&newmask);
+    sigemptyset(&oldmask);
+
+    if (!PyArg_ParseTuple(args, "iO", &how, &signals))
+        return NULL;
+
+    if (wrap_sigset(&newmask, signals))
+        return NULL;
+
+    if (sigprocmask(how, &newmask, &oldmask))
+        return NULL;
+
+    return unwrap_sigset(&oldmask);
 }
 
 
@@ -184,6 +251,9 @@ static PyMethodDef methods[] = {
 
     {"signalfd", python_signalfd, METH_VARARGS,
         "create a file descriptor that can be used to accept signals"},
+
+    {"sigprocmask", python_sigprocmask, METH_VARARGS,
+        "examine and change blocked signals"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -208,4 +278,8 @@ initeventfs(void) {
 
     PyModule_AddIntConstant(module, "SFD_NONBLOCK", SFD_NONBLOCK);
     PyModule_AddIntConstant(module, "SFD_CLOEXEC", SFD_CLOEXEC);
+
+    PyModule_AddIntConstant(module, "SIG_BLOCK", SIG_BLOCK);
+    PyModule_AddIntConstant(module, "SIG_UNBLOCK", SIG_UNBLOCK);
+    PyModule_AddIntConstant(module, "SIG_SETMASK", SIG_SETMASK);
 }
