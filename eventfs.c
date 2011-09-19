@@ -1,47 +1,11 @@
 #include <Python.h>
+
+#include <signal.h>
+#include <unistd.h>
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <sys/signalfd.h>
-#include <signal.h>
 
-
-static PyObject *
-python_eventfd(PyObject *module, PyObject *args) {
-    PyObject *pyinitval;
-    long initval;
-    int flags, fd;
-
-    if (!PyArg_ParseTuple(args, "O!i", &PyInt_Type, &pyinitval, &flags))
-        return NULL;
-    initval = PyInt_AsLong(pyinitval);
-
-    if (initval < 0) {
-        PyErr_SetString(PyExc_ValueError, "initval must be non-negative");
-        return NULL;
-    }
-
-    if (!(fd = eventfd((unsigned int)initval, flags))) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        return NULL;
-    }
-
-    return PyInt_FromLong((long)fd);
-}
-
-static PyObject *
-python_timerfd_create(PyObject *module, PyObject *args) {
-    int clockid, flags, fd;
-
-    if (!PyArg_ParseTuple(args, "ii", &clockid, &flags))
-        return NULL;
-
-    if (!(fd = timerfd_create(clockid, flags))) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        return NULL;
-    }
-
-    return PyInt_FromLong((long)fd);
-}
 
 static PyObject *
 unwrap_timer(const struct itimerspec *spec) {
@@ -84,12 +48,12 @@ wrap_timer(double timeout, double interval, struct itimerspec *spec) {
     spec->it_interval.tv_nsec = (long)(interval * 1E9);
 }
 
+#define SIG_COUNT 31
 static int CHECK_SIGNALS[] = {
-    SIGABRT, SIGALRM, SIGBUS,  SIGCHLD,   SIGCLD,   SIGCONT, SIGFPE, SIGHUP,
+    SIGABRT, SIGALRM, SIGBUS,  SIGCHLD,   SIGCLD,   SIGCONT, SIGFPE,  SIGHUP,
     SIGILL,  SIGINT,  SIGIO,   SIGIOT,    SIGPIPE,  SIGPOLL, SIGPROF, SIGPWR,
     SIGQUIT, SIGSEGV, SIGSYS,  SIGTERM,   SIGTRAP,  SIGTSTP, SIGTTIN, SIGTTOU,
     SIGURG,  SIGUSR1, SIGUSR2, SIGVTALRM, SIGWINCH, SIGXCPU, SIGXFSZ };
-#define SIG_COUNT 31
 
 static PyObject *
 unwrap_sigset(sigset_t *set) {
@@ -157,6 +121,67 @@ wrap_sigset(sigset_t *set, PyObject *signals) {
 }
 
 static PyObject *
+unwrap_siginfo(struct signalfd_siginfo *info) {
+    PyObject *result, *item;
+
+    if (NULL == (result = PyTuple_New(2)))
+        return NULL;
+
+    if (NULL == (item = PyInt_FromLong((long)(info->ssi_signo)))) {
+        Py_DECREF(result);
+        return NULL;
+    }
+    PyTuple_SET_ITEM(result, 0, item);
+
+    if (NULL == (item = PyInt_FromLong((long)(info->ssi_code)))) {
+        Py_DECREF(result);
+        return NULL;
+    }
+    PyTuple_SET_ITEM(result, 1, item);
+
+    return result;
+}
+
+
+static PyObject *
+python_eventfd(PyObject *module, PyObject *args) {
+    PyObject *pyinitval;
+    long initval;
+    int flags, fd;
+
+    if (!PyArg_ParseTuple(args, "O!i", &PyInt_Type, &pyinitval, &flags))
+        return NULL;
+    initval = PyInt_AsLong(pyinitval);
+
+    if (initval < 0) {
+        PyErr_SetString(PyExc_ValueError, "initval must be non-negative");
+        return NULL;
+    }
+
+    if (!(fd = eventfd((unsigned int)initval, flags))) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)fd);
+}
+
+static PyObject *
+python_timerfd_create(PyObject *module, PyObject *args) {
+    int clockid, flags, fd;
+
+    if (!PyArg_ParseTuple(args, "ii", &clockid, &flags))
+        return NULL;
+
+    if (!(fd = timerfd_create(clockid, flags))) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)fd);
+}
+
+static PyObject *
 python_timerfd_settime(PyObject *module, PyObject *args) {
     int fd, flags;
     double timeout, interval = 0;
@@ -217,6 +242,25 @@ python_signalfd(PyObject *module, PyObject *args) {
 }
 
 static PyObject *
+python_read_signalfd(PyObject *module, PyObject *args) {
+    int fd;
+    struct signalfd_siginfo info;
+    ssize_t length;
+
+    if (!PyArg_ParseTuple(args, "i", &fd))
+        return NULL;
+
+    length = read(fd, (void *)&info, sizeof(struct signalfd_siginfo));
+
+    if (length < 0) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        return NULL;
+    }
+
+    return unwrap_siginfo(&info);
+}
+
+static PyObject *
 python_sigprocmask(PyObject *module, PyObject *args) {
     int how;
     sigset_t newmask, oldmask;
@@ -251,6 +295,8 @@ static PyMethodDef methods[] = {
 
     {"signalfd", python_signalfd, METH_VARARGS,
         "create a file descriptor that can be used to accept signals"},
+    {"read_signalfd", python_read_signalfd, METH_VARARGS,
+        "read signal info from a file descriptor created with signalfd"},
 
     {"sigprocmask", python_sigprocmask, METH_VARARGS,
         "examine and change blocked signals"},
