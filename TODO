@@ -1,6 +1,3 @@
-- docstrings
-  - they don't have to duplicate info in man 2, but should at least make the
-    C/python mapping clear
 - namedtuple types for the tuples these functions return
   - timer with (timeout, interval)
   - siginfo, so far with (signum, code)

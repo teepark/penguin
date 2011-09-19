@@ -356,39 +356,122 @@ static PyMethodDef methods[] = {
 \n\
 see `man 2 eventfd` for more complete documentation\n\
 \n\
-:param initval: where to initialize the new eventfd's counter\n\
+:param initval: where to initialize the new eventfd's counter (default 0)\n\
 :type initval: non-negative int\n\
 \n\
 :param flags:\n\
-    **(optional)** flags to apply for the new file descriptor (see the\n\
-    eventfd man page for details on the available flags)\n\
+    flags to apply for the new file descriptor (default 0)\n\
 \n\
     this argument won't be available on kernels without eventfd2(2)\n\
-:type flags: int"},
+:type flags: int\n\
+\n\
+:returns: integer, a new eventfd file descriptor"},
 
     {"read_eventfd", python_read_eventfd, METH_VARARGS,
-        "read the counter out of an eventfd-created file descriptor"},
+        "read the counter out of an eventfd-created file descriptor\n\
+\n\
+utility method, equivalent to struct.unpack('Q', os.read(fd, 8))\n\
+\n\
+:param fd: the file descriptor from which to read an event\n\
+:type fd: int\n\
+\n\
+:returns: integer, the value read from the eventfd descriptor"},
+
     {"write_eventfd", python_write_eventfd, METH_VARARGS,
-        "add a value into an eventfd-created file descriptor"},
+        "add a value into an eventfd-created file descriptor\n\
+\n\
+utility method, equivalent to os.write(fd, struct.pack('Q', value))\n\
+\n\
+see `man eventfd` for exactly what this does\n\
+\n\
+:param fd: the file descriptor to be written to\n\
+:type fd: int\n\
+\n\
+:param value: a value to add to the eventfd's counter\n\
+:type value: non-negative int"},
 #endif
 
 #ifdef __NR_timerfd_create
     {"timerfd_create", python_timerfd_create, METH_VARARGS,
-        "create a new timer and return a file descriptor that refers to it"},
+        "create a new timer and return a file descriptor that refers to it\n\
+\n\
+:param clockid: the type of clock to use (default CLOCK_REALTIME)\n\
+:type clockid: int\n\
+\n\
+:param flags: flags to set on the new fd (default 0)\n\
+:type flags: int\n\
+\n\
+:returns: integer, a new timerfd descriptor"},
+
     {"timerfd_settime", (PyCFunction)python_timerfd_settime, METH_VARARGS | METH_KEYWORDS,
-        "arm or disarm the timer referred to by a file descriptor"},
+        "arm or disarm the timer referred to by a timerfd file descriptor\n\
+\n\
+:param fd: the file descriptor to set a timer on\n\
+:type fd: int\n\
+\n\
+:param timeout: time in seconds until the timer first triggers\n\
+:type timeout: number\n\
+\n\
+:param interval:\n\
+    interval in seconds at which to re-trigger the fd after the first fire\n\
+    (default of 0 means only trigger once)\n\
+:type interval: number\n\
+\n\
+:param absolute: if `True`, sets the timer as absolute time (default False)\n\
+:type absolute: int\n\
+\n\
+:returns:\n\
+    a two-tuple with the timer that was previously stored in this fd (time\n\
+    remaining until the next trigger, interval after that)"},
+
     {"timerfd_gettime", python_timerfd_gettime, METH_VARARGS,
-        "return the setting of the timer referred to by a file descriptor"},
+        "return the setting of the timer referred to by a file descriptor\n\
+\n\
+:param fd: file descriptor to read the timer from\n\
+:type fd: int\n\
+\n\
+:returns:\n\
+    a two-tuple with the timer stored in the fd (time remaining until the\n\
+    trigger, interval after that)"},
 #endif
 
 #if _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
     {"sigprocmask", python_sigprocmask, METH_VARARGS,
-        "examine and change blocked signals"},
+        "examine and change blocked signals\n\
+\n\
+:param how:\n\
+    integer describing the operation to carry out on the mask (SIG_BLOCK to\n\
+    add to the mask, SIG_UNBLOCK to remove, SIG_SETMASK to set it)\n\
+:type how: int\n\
+\n\
+:param signals: the argument for the `how` operation\n\
+:type signals: iterable of ints\n\
+\n\
+:returns: the list of signals in the mask before this operation"},
+
 #ifdef __NR_signalfd
     {"signalfd", python_signalfd, METH_VARARGS,
-        "create a file descriptor that can be used to accept signals"},
+        "create a file descriptor that can be used to accept signals\n\
+\n\
+:param fd: signalfd descriptor to modify, or -1 to create a new one\n\
+:type fd: int\n\
+\n\
+:param signals: signals to receive on the signalfd\n\
+:type signals: iterable of ints\n\
+\n\
+:param flags: flags to apply to the signalfd\n\
+:type flags: int\n\
+\n\
+:returns: integer, a new signalfd descriptor"},
+
     {"read_signalfd", python_read_signalfd, METH_VARARGS,
-        "read signal info from a file descriptor created with signalfd"},
+        "read signal info from a file descriptor created with signalfd\n\
+\n\
+:param fd: file descriptor to read a signal from\n\
+:type fd: int\n\
+\n\
+:returns:\n\
+    a two-tuple representing the signal it received, (signum, reason_code)"},
 #endif
 #endif
 
