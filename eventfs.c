@@ -11,14 +11,14 @@
 #ifdef __NR_eventfd
 static PyObject *
 python_eventfd(PyObject *module, PyObject *args) {
-    unsigned int initval;
-    int fd, flags;
+    unsigned int initval = 0;
+    int fd, flags = 0;
 
 #ifdef __NR_eventfd2
-    if (!PyArg_ParseTuple(args, "Ii", &initval, &flags))
+    if (!PyArg_ParseTuple(args, "|Ii", &initval, &flags))
 #else
     flags = 0;
-    if (!PyArg_ParseTuple(args, "I", &initval))
+    if (!PyArg_ParseTuple(args, "|I", &initval))
 #endif
         return NULL;
 
@@ -124,9 +124,9 @@ wrap_timer(double timeout, double interval, struct itimerspec *spec) {
 
 static PyObject *
 python_timerfd_create(PyObject *module, PyObject *args) {
-    int clockid, flags, fd;
+    int fd, clockid = CLOCK_REALTIME, flags = 0;
 
-    if (!PyArg_ParseTuple(args, "ii", &clockid, &flags))
+    if (!PyArg_ParseTuple(args, "|ii", &clockid, &flags))
         return NULL;
 
     if (!(fd = timerfd_create(clockid, flags))) {
@@ -137,16 +137,24 @@ python_timerfd_create(PyObject *module, PyObject *args) {
     return PyInt_FromLong((long)fd);
 }
 
+static char *timerfd_settime_kwargs[] = {"interval", "absolute", NULL}
+
 static PyObject *
-python_timerfd_settime(PyObject *module, PyObject *args) {
-    int fd, flags;
+python_timerfd_settime(PyObject *module, PyObject *args, PyObject *kwargs) {
+    int fd, flags = 0;
     double timeout, interval = 0;
     struct itimerspec inspec, outspec;
+    PyObject *absolute = Py_False;
 
-    if (!PyArg_ParseTuple(args, "iid|d", &fd, &flags, &timeout, &interval))
+    if (!PyArg_ParseTupleAndKeywords(
+                args, kwargs, "id|dO", timerfd_settime_kwargs,
+                &fd, &timeout, &interval, &absolute))
         return NULL;
 
     wrap_timer(timeout, interval, &inspec);
+
+    if PyObject_IsTrue(absolute)
+        flags |= TFD_TIMER_ABSTIME;
 
     if (timerfd_settime(fd, flags, &inspec, &outspec) < 0) {
         PyErr_SetFromErrno(PyExc_OSError);
@@ -292,16 +300,15 @@ python_sigprocmask(PyObject *module, PyObject *args) {
 #ifdef __NR_signalfd
 static PyObject *
 python_signalfd(PyObject *module, PyObject *args) {
-    int fd, flags;
+    int fd, flags = 0;
     sigset_t mask;
     PyObject *signals, *result;
 
     sigemptyset(&mask);
 
 #ifdef __NR_signalfd4
-    if (!PyArg_ParseTuple(args, "iOi", &fd, &signals, &flags))
+    if (!PyArg_ParseTuple(args, "iO|i", &fd, &signals, &flags))
 #else
-    flags = 0;
     if (!PyArg_ParseTuple(args, "iO", &fd, &signals))
 #endif
         return NULL;
@@ -355,7 +362,7 @@ static PyMethodDef methods[] = {
 #ifdef __NR_timerfd_create
     {"timerfd_create", python_timerfd_create, METH_VARARGS,
         "create a new timer and return a file descriptor that refers to it"},
-    {"timerfd_settime", python_timerfd_settime, METH_VARARGS,
+    {"timerfd_settime", python_timerfd_settime, METH_VARARGS | METH_KEYWORDS,
         "arm or disarm the timer referred to by a file descriptor"},
     {"timerfd_gettime", python_timerfd_gettime, METH_VARARGS,
         "return the setting of the timer referred to by a file descriptor"},
@@ -402,9 +409,6 @@ initeventfs(void) {
 #endif
 #ifdef TFD_CLOEXEC
     PyModule_AddIntConstant(module, "TFD_CLOEXEC", TFD_CLOEXEC);
-#endif
-#ifdef TFD_TIMER_ABSTIME
-    PyModule_AddIntConstant(module, "TFD_TIMER_ABSTIME", TFD_TIMER_ABSTIME);
 #endif
 #ifdef SFD_NONBLOCK
     PyModule_AddIntConstant(module, "SFD_NONBLOCK", SFD_NONBLOCK);
