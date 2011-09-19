@@ -1,0 +1,12 @@
+- docstrings
+  - they don't have to duplicate info in man 2, but should at least make the
+    C/python mapping clear
+- macros to comment in/out signals (and syscalls?) that are actually available
+  - so far just threw everything in that Works On My Box
+- namedtuple types for the tuples these functions return
+  - timer with (timeout, interval)
+  - siginfo, so far with (signum, code)
+- pull more siginfo fields out in read_signalfd (really in unwrap_siginfo)
+- return a set of signums from sigprocmask() instead of a list
+  - get C set version issues straight back to 2.5
+- python 3 compatibility
