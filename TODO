@@ -8,5 +8,5 @@
   - siginfo, so far with (signum, code)
 - pull more siginfo fields out in read_signalfd (really in unwrap_siginfo)
 - return a set of signums from sigprocmask() instead of a list
-  - get C set version issues straight back to 2.5
+  - get python version issues straight back to 2.5
 - python 3 compatibility

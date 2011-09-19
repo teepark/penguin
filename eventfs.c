@@ -145,25 +145,67 @@ unwrap_siginfo(struct signalfd_siginfo *info) {
 
 static PyObject *
 python_eventfd(PyObject *module, PyObject *args) {
-    PyObject *pyinitval;
-    long initval;
+    unsigned int initval;
     int flags, fd;
 
-    if (!PyArg_ParseTuple(args, "O!i", &PyInt_Type, &pyinitval, &flags))
+    if (!PyArg_ParseTuple(args, "Ii", &initval, &flags))
         return NULL;
-    initval = PyInt_AsLong(pyinitval);
 
-    if (initval < 0) {
-        PyErr_SetString(PyExc_ValueError, "initval must be non-negative");
-        return NULL;
-    }
-
-    if (!(fd = eventfd((unsigned int)initval, flags))) {
+    if (!(fd = eventfd(initval, flags))) {
         PyErr_SetFromErrno(PyExc_OSError);
         return NULL;
     }
 
     return PyInt_FromLong((long)fd);
+}
+
+static PyObject *
+python_read_eventfd(PyObject *module, PyObject *args) {
+    int fd;
+    ssize_t length;
+    unsigned PY_LONG_LONG val;
+
+    if (!PyArg_ParseTuple(args, "i", &fd))
+        return NULL;
+
+    length = read(fd, (void *)&val, 8);
+
+    if (length < 0) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        return NULL;
+    }
+
+    if (length != 8) {
+        PyErr_SetObject(PyExc_OSError, PyInt_FromLong((long)EIO));
+        return NULL;
+    }
+
+    return PyLong_FromUnsignedLongLong(val);
+}
+
+static PyObject *
+python_write_eventfd(PyObject *module, PyObject *args) {
+    int fd;
+    ssize_t length;
+    unsigned PY_LONG_LONG val;
+
+    if (!PyArg_ParseTuple(args, "iK", &fd, &val))
+        return NULL;
+
+    length = write(fd, (const void *)&val, 8);
+
+    if (length < 0) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        return NULL;
+    }
+
+    if (length != 8) {
+        PyErr_SetObject(PyExc_OSError, PyInt_FromLong((long)EIO));
+        return NULL;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
 }
 
 static PyObject *
@@ -285,6 +327,10 @@ python_sigprocmask(PyObject *module, PyObject *args) {
 static PyMethodDef methods[] = {
     {"eventfd", python_eventfd, METH_VARARGS,
         "create a file descriptor for event notification"},
+    {"read_eventfd", python_read_eventfd, METH_VARARGS,
+        "read the counter out of an eventfd-created file descriptor"},
+    {"write_eventfd", python_write_eventfd, METH_VARARGS,
+        "add a value into an eventfd-created file descriptor"},
 
     {"timerfd_create", python_timerfd_create, METH_VARARGS,
         "create a new timer and return a file descriptor that refers to it"},
