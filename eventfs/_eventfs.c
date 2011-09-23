@@ -82,7 +82,7 @@ python_write_eventfd(PyObject *module, PyObject *args) {
 
 /* set this to eventfs._datatypes.itimerspec at c module import time */
 static PyObject *PyItimerspec;
-static PyObject *PySignalfdSiginfo;
+static PyObject *PySiginfo;
 
 #ifdef __NR_timerfd_create
 static PyObject *
@@ -385,7 +385,7 @@ unwrap_siginfo(struct signalfd_siginfo *info) {
     }
     PyTuple_SET_ITEM(args, 1, item);
 
-    result = PyObject_Call(PySignalfdSiginfo, args, NULL);
+    result = PyObject_Call(PySiginfo, args, NULL);
     Py_DECREF(args);
     if (NULL == result)
         return NULL;
@@ -604,9 +604,9 @@ init_eventfs(void) {
 
     datatypes = PyImport_ImportModule("eventfs.structs");
     PyItimerspec = PyObject_GetAttrString(datatypes, "itimerspec");
-    PySignalfdSiginfo = PyObject_GetAttrString(datatypes, "signalfd_siginfo");
+    PySiginfo = PyObject_GetAttrString(datatypes, "siginfo");
     Py_INCREF(PyItimerspec);
-    Py_INCREF(PySignalfdSiginfo);
+    Py_INCREF(PySiginfo);
 
 #ifdef EFD_NONBLOCK
     PyModule_AddIntConstant(module, "EFD_NONBLOCK", EFD_NONBLOCK);
