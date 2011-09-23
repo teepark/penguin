@@ -182,22 +182,124 @@ python_timerfd_gettime(PyObject *module, PyObject *args) {
 #endif /* __NR_timerfd_create */
 
 #if _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
-#define SIG_COUNT 31
+static int SIGNAL_COUNT = 0;
+
 static int CHECK_SIGNALS[] = {
-    SIGABRT, SIGALRM, SIGBUS,  SIGCHLD,   SIGCLD,   SIGCONT, SIGFPE,  SIGHUP,
-    SIGILL,  SIGINT,  SIGIO,   SIGIOT,    SIGPIPE,  SIGPOLL, SIGPROF, SIGPWR,
-    SIGQUIT, SIGSEGV, SIGSYS,  SIGTERM,   SIGTRAP,  SIGTSTP, SIGTTIN, SIGTTOU,
-    SIGURG,  SIGUSR1, SIGUSR2, SIGVTALRM, SIGWINCH, SIGXCPU, SIGXFSZ };
+#ifdef SIGABRT
+    SIGABRT,
+#endif
+#ifdef SIGALRM
+    SIGALRM,
+#endif
+#ifdef SIGBUS
+    SIGBUS,
+#endif
+#ifdef SIGCHLD
+    SIGCHLD,
+#endif
+#ifdef SIGCLD
+    SIGCLD,
+#endif
+#ifdef SIGCONT
+    SIGCONT,
+#endif
+#ifdef SIGFPE
+    SIGFPE,
+#endif
+#ifdef SIGHUP
+    SIGHUP,
+#endif
+#ifdef SIGILL
+    SIGILL,
+#endif
+#ifdef SIGINT
+    SIGINT,
+#endif
+#ifdef SIGIO
+    SIGIO,
+#endif
+#ifdef SIGIOT
+    SIGIOT,
+#endif
+#ifdef SIGPIPE
+    SIGPIPE,
+#endif
+#ifdef SIGPOLL
+    SIGPOLL,
+#endif
+#ifdef SIGPROF
+    SIGPROF,
+#endif
+#ifdef SIGPWR
+    SIGPWR,
+#endif
+#ifdef SIGQUIT
+    SIGQUIT,
+#endif
+#ifdef SIGSEGV
+    SIGSEGV,
+#endif
+#ifdef SIGSYS
+    SIGSYS,
+#endif
+#ifdef SIGTERM
+    SIGTERM,
+#endif
+#ifdef SIGTRAP
+    SIGTRAP,
+#endif
+#ifdef SIGTSTP
+    SIGTSTP,
+#endif
+#ifdef SIGTTIN
+    SIGTTIN,
+#endif
+#ifdef SIGTTOU
+    SIGTTOU,
+#endif
+#ifdef SIGURG
+    SIGURG,
+#endif
+#ifdef SIGUSR1
+    SIGUSR1,
+#endif
+#ifdef SIGUSR2
+    SIGUSR2,
+#endif
+#ifdef SIGVTALRM
+    SIGVTALRM,
+#endif
+#ifdef SIGWINCH
+    SIGWINCH,
+#endif
+#ifdef SIGXCPU
+    SIGXCPU,
+#endif
+#ifdef SIGXFSZ
+    SIGXFSZ,
+#endif
+    0
+};
+
+static void
+init_signal_count(void) {
+    int i;
+    if (!SIGNAL_COUNT) {
+        for (i = 0; CHECK_SIGNALS[i]; ++i);
+        SIGNAL_COUNT = i;
+    }
+}
 
 static PyObject *
 unwrap_sigset(sigset_t *set) {
     PyObject *signals, *num;
     int i;
+    init_signal_count();
 
     if (NULL == (signals = PyList_New(0)))
         return NULL;
 
-    for (i = 0; i < SIG_COUNT; ++i) {
+    for (i = 0; i < SIGNAL_COUNT; ++i) {
         if (sigismember(set, CHECK_SIGNALS[i])) {
             if (NULL == (num = PyInt_FromLong((long)(CHECK_SIGNALS[i])))) {
                 Py_DECREF(signals);

@@ -16,7 +16,7 @@ setup(
     ext_modules=[Extension(
         'eventfs',
         ['eventfs.c'],
-        extra_compile_args=['-Wall'])],
+        )],
 )
 
 MANIFEST = (
