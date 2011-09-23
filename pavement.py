@@ -9,13 +9,14 @@ from paver.setuputils import setup
 
 setup(
     name="eventfs",
-    description="bindings to linux 2.6 eventfs facilities",
+    description="bindings to linux 2.6+ eventfs facilities",
     version="0.1",
     author="Travis Parker",
     author_email="travis.parker@gmail.com",
+    packages=["eventfs"],
     ext_modules=[Extension(
-        'eventfs',
-        ['eventfs.c'],
+        '_eventfs',
+        ['eventfs/_eventfs.c'],
         )],
 )
 

@@ -80,11 +80,15 @@ python_write_eventfd(PyObject *module, PyObject *args) {
 }
 #endif /* __NR_eventfd */
 
+/* set this to eventfs._datatypes.itimerspec at c module import time */
+static PyObject *PyItimerspec;
+static PyObject *PySignalfdSiginfo;
+
 #ifdef __NR_timerfd_create
 static PyObject *
 unwrap_timer(const struct itimerspec *spec) {
     double timeout, interval;
-    PyObject *pytimeout, *pyinterval, *pair;
+    PyObject *pytimeout, *pyinterval, *args, *pyspec;
 
     timeout = spec->it_value.tv_sec + (spec->it_value.tv_nsec / 1E9);
     if (NULL == (pytimeout = PyFloat_FromDouble(timeout)))
@@ -96,15 +100,21 @@ unwrap_timer(const struct itimerspec *spec) {
         return NULL;
     }
 
-    if (NULL == (pair = PyTuple_New(2))) {
+    if (NULL == (args = PyTuple_New(2))) {
         Py_DECREF(pytimeout);
         Py_DECREF(pyinterval);
         return NULL;
     }
 
-    PyTuple_SET_ITEM(pair, 0, pytimeout);
-    PyTuple_SET_ITEM(pair, 1, pyinterval);
-    return pair;
+    PyTuple_SET_ITEM(args, 0, pytimeout);
+    PyTuple_SET_ITEM(args, 1, pyinterval);
+
+    pyspec = PyObject_Call(PyItimerspec, args, NULL);
+    Py_DECREF(args);
+    if (NULL == pyspec)
+        return NULL;
+
+    return pyspec;
 }
 
 static void
@@ -358,22 +368,27 @@ wrap_sigset(sigset_t *set, PyObject *signals) {
 
 static PyObject *
 unwrap_siginfo(struct signalfd_siginfo *info) {
-    PyObject *result, *item;
+    PyObject *args, *item, *result;
 
-    if (NULL == (result = PyTuple_New(2)))
+    if (NULL == (args = PyTuple_New(2)))
         return NULL;
 
     if (NULL == (item = PyInt_FromLong((long)(info->ssi_signo)))) {
-        Py_DECREF(result);
+        Py_DECREF(args);
         return NULL;
     }
-    PyTuple_SET_ITEM(result, 0, item);
+    PyTuple_SET_ITEM(args, 0, item);
 
     if (NULL == (item = PyInt_FromLong((long)(info->ssi_code)))) {
-        Py_DECREF(result);
+        Py_DECREF(args);
         return NULL;
     }
-    PyTuple_SET_ITEM(result, 1, item);
+    PyTuple_SET_ITEM(args, 1, item);
+
+    result = PyObject_Call(PySignalfdSiginfo, args, NULL);
+    Py_DECREF(args);
+    if (NULL == result)
+        return NULL;
 
     return result;
 }
@@ -582,10 +597,16 @@ see `man eventfd` for exactly what this does\n\
 
 
 PyMODINIT_FUNC
-initeventfs(void) {
-    PyObject *module;
+init_eventfs(void) {
+    PyObject *module, *datatypes;
 
-    module = Py_InitModule("eventfs", methods);
+    module = Py_InitModule("_eventfs", methods);
+
+    datatypes = PyImport_ImportModule("eventfs.structs");
+    PyItimerspec = PyObject_GetAttrString(datatypes, "itimerspec");
+    PySignalfdSiginfo = PyObject_GetAttrString(datatypes, "signalfd_siginfo");
+    Py_INCREF(PyItimerspec);
+    Py_INCREF(PySignalfdSiginfo);
 
 #ifdef EFD_NONBLOCK
     PyModule_AddIntConstant(module, "EFD_NONBLOCK", EFD_NONBLOCK);
