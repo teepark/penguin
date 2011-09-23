@@ -306,7 +306,7 @@ unwrap_sigset(sigset_t *set) {
     int i;
     init_signal_count();
 
-    if (NULL == (signals = PyList_New(0)))
+    if (NULL == (signals = PySet_New(NULL)))
         return NULL;
 
     for (i = 0; i < SIGNAL_COUNT; ++i) {
@@ -316,7 +316,7 @@ unwrap_sigset(sigset_t *set) {
                 return NULL;
             }
 
-            if (PyList_Append(signals, num)) {
+            if (PySet_Add(signals, num)) {
                 Py_DECREF(signals);
                 Py_DECREF(num);
                 return NULL;
