@@ -1,4 +1,5 @@
 #include <Python.h>
+#include <boolobject.h>
 
 #include <signal.h>
 #include <unistd.h>
@@ -6,6 +7,13 @@
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <sys/signalfd.h>
+
+
+#if PY_MAJOR_VERSION >= 3
+    #define PyInt_FromLong PyLong_FromLong
+    #define PyInt_AsLong   PyLong_AsLong
+    #define PyNumber_Int   PyNumber_Long
+#endif
 
 
 #ifdef __NR_eventfd
@@ -602,11 +610,26 @@ see `man eventfd` for exactly what this does\n\
 };
 
 
+#if PY_MAJOR_VERSION >= 3
+static struct PyModuleDef evfsmodule = {
+    PyModuleDef_HEAD_INIT,
+    "_eventfs", "", -1, methods,
+    NULL, NULL, NULL, NULL
+};
+
+PyMODINIT_FUNC
+PyInit__eventfs(void) {
+    PyObject *module, *datatypes;
+    module = PyModule_Create(&evfsmodule);
+
+#else
+
 PyMODINIT_FUNC
 init_eventfs(void) {
     PyObject *module, *datatypes;
-
     module = Py_InitModule("_eventfs", methods);
+
+#endif
 
     datatypes = PyImport_ImportModule("eventfs.structs");
 
@@ -658,5 +681,9 @@ init_eventfs(void) {
 #endif
 #ifdef SIG_SETMASK
     PyModule_AddIntConstant(module, "SIG_SETMASK", SIG_SETMASK);
+#endif
+
+#if PY_MAJOR_VERSION >= 3
+    return module;
 #endif
 }

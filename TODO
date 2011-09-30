@@ -1,3 +1,2 @@
 - pull more siginfo fields out in read_signalfd (really in unwrap_siginfo)
 - int constants for the possible values of signalfd_siginfo.ssi_code
-- python 3 compatibility
