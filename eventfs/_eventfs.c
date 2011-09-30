@@ -1,4 +1,6 @@
 #include <Python.h>
+
+/* for some reason seeing _Py_FalseStruct undefined without this */
 #include <boolobject.h>
 
 #include <signal.h>
