@@ -81,8 +81,8 @@ python_write_eventfd(PyObject *module, PyObject *args) {
 #endif /* __NR_eventfd */
 
 /* set this to eventfs._datatypes.itimerspec at c module import time */
-static PyObject *PyItimerspec;
-static PyObject *PySiginfo;
+static PyObject *PyItimerspec = NULL;
+static PyObject *PySiginfo = NULL;
 
 #ifdef __NR_timerfd_create
 static PyObject *
@@ -108,6 +108,9 @@ unwrap_timer(const struct itimerspec *spec) {
 
     PyTuple_SET_ITEM(args, 0, pytimeout);
     PyTuple_SET_ITEM(args, 1, pyinterval);
+
+    if (NULL == PyItimerspec)
+        return args;
 
     pyspec = PyObject_Call(PyItimerspec, args, NULL);
     Py_DECREF(args);
@@ -385,6 +388,9 @@ unwrap_siginfo(struct signalfd_siginfo *info) {
     }
     PyTuple_SET_ITEM(args, 1, item);
 
+    if (NULL == PySiginfo)
+        return args;
+
     result = PyObject_Call(PySiginfo, args, NULL);
     Py_DECREF(args);
     if (NULL == result)
@@ -603,10 +609,19 @@ init_eventfs(void) {
     module = Py_InitModule("_eventfs", methods);
 
     datatypes = PyImport_ImportModule("eventfs.structs");
-    PyItimerspec = PyObject_GetAttrString(datatypes, "itimerspec");
-    PySiginfo = PyObject_GetAttrString(datatypes, "siginfo");
-    Py_INCREF(PyItimerspec);
-    Py_INCREF(PySiginfo);
+
+    if (NULL != datatypes && PyObject_HasAttrString(datatypes, "itimerspec")) {
+        PyItimerspec = PyObject_GetAttrString(datatypes, "itimerspec");
+        Py_INCREF(PyItimerspec);
+    }
+
+    if (NULL != datatypes && PyObject_HasAttrString(datatypes, "siginfo")) {
+        PySiginfo = PyObject_GetAttrString(datatypes, "siginfo");
+        Py_INCREF(PySiginfo);
+    }
+
+    if (NULL == datatypes)
+        PyErr_Clear();
 
 #ifdef EFD_NONBLOCK
     PyModule_AddIntConstant(module, "EFD_NONBLOCK", EFD_NONBLOCK);
