@@ -1,14 +1,20 @@
 #include <Python.h>
 
-/* for some reason seeing _Py_FalseStruct undefined without this */
+/* for some reason _Py_FalseStruct is undefined without this in 3.1 */
 #include <boolobject.h>
 
 #include <signal.h>
 #include <unistd.h>
 #include <asm/unistd.h>
-#include <sys/eventfd.h>
-#include <sys/timerfd.h>
-#include <sys/signalfd.h>
+#ifdef __NR_eventfd
+    #include <sys/eventfd.h>
+#endif
+#ifdef __NR_timerfd_create
+    #include <sys/timerfd.h>
+#endif
+#ifdef __NR_signalfd
+    #include <sys/signalfd.h>
+#endif
 
 
 #if PY_MAJOR_VERSION >= 3
