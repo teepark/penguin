@@ -17,7 +17,7 @@ for how the C functions were mapped into python functions):
 sigprocmask does not create or manipulate a special file descriptor like
 the others, it is there because signalfd is useless without it.
 
-these functions are present purely to ake dealing with these file
+these functions are present purely to make dealing with these file
 descriptors easier:
 
     - read_eventfd
