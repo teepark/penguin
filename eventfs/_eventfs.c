@@ -640,6 +640,16 @@ python_aio_write(PyObject *module, PyObject *args, PyObject *kwargs) {
 }
 
 static PyObject *
+python_aio_error(PyObject *module, PyObject *args) {
+    python_aiocb_object *pyaiocb;
+
+    if (!PyArg_ParseTuple(args, "O!", &python_aiocb_type, &pyaiocb))
+        return NULL;
+
+    return PyInt_FromLong((long)aio_error(&pyaiocb->cb));
+}
+
+static PyObject *
 python_aio_return(PyObject *module, PyObject *args) {
     python_aiocb_object *pyaiocb;
     int rc;
@@ -831,8 +841,15 @@ see `man eventfd` for exactly what this does\n\
 :type signo: int\n\
 \n\
 :returns: an aiocb, which can be used to get the write return value"},
+    {"aio_error", python_aio_error, METH_VARARGS,
+        "get the error status of an aio operation\n\
+\n\
+:param aiocb: the aiocb representing the aio operation\n\
+:type aiocb: aiocb\n\
+\n\
+:returns: int, the direct return value of aio_error(3)"},
     {"aio_return", python_aio_return, METH_VARARGS,
-        "retrieve the return value of an aio operation\n\
+        "get the return status of an aio operation\n\
 \n\
 :param aiocb: the aiocb representing the aio operation\n\
 :type aiocb: aiocb\n\
