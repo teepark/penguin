@@ -21,9 +21,10 @@
 
 
 #if PY_MAJOR_VERSION >= 3
-    #define PyInt_FromLong PyLong_FromLong
-    #define PyInt_AsLong   PyLong_AsLong
-    #define PyNumber_Int   PyNumber_Long
+    #define PyInt_FromLong             PyLong_FromLong
+    #define PyInt_AsLong               PyLong_AsLong
+    #define PyNumber_Int               PyNumber_Long
+    #define PyString_FromStringAndSize PyBytes_FromStringAndSize
 #endif
 
 
@@ -504,15 +505,17 @@ static PyMethodDef python_aiocb_methods[] = {
 static void
 python_aiocb_dealloc(python_aiocb_object *self) {
     if (self->own_buf) free((void *)self->cb.aio_buf);
-    self->ob_type->tp_free((PyObject *)self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-PyTypeObject python_aiocb_type = {
+static PyTypeObject python_aiocb_type = {
     PyObject_HEAD_INIT(&PyType_Type)
-    0,
-    "_eventfs.aiocb",
-    sizeof(python_aiocb_object),
-    0,
+#if PY_MAJOR_VERSION < 3
+    0,                                         /* ob_size */
+#endif
+    "_eventfs.aiocb",                          /* tp_name */
+    sizeof(python_aiocb_object),               /* tp_basicsize */
+    0,                                         /* tp_itemsize */
     (destructor)python_aiocb_dealloc,          /* tp_dealloc */
     0,                                         /* tp_print */
     0,                                         /* tp_getattr */
