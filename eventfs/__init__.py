@@ -13,6 +13,9 @@ for how the C functions were mapped into python functions):
     - timerfd_gettime
     - timerfd_settime
     - sigprocmask
+    - aio_read
+    - aio_write
+    - aio_return
 
 sigprocmask does not create or manipulate a special file descriptor like
 the others, it is there because signalfd is useless without it.
@@ -23,6 +26,7 @@ descriptors easier:
     - read_eventfd
     - write_eventfd
     - read_signalfd
+    - read_aiocb_buffer
 """
 
 from _eventfs import *

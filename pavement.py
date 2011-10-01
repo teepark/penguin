@@ -17,6 +17,7 @@ setup(
     ext_modules=[Extension(
         '_eventfs',
         ['eventfs/_eventfs.c'],
+        extra_link_args=['-laio', '-lrt'],
         )],
 )
 

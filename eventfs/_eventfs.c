@@ -15,6 +15,9 @@
 #ifdef __NR_signalfd
     #include <sys/signalfd.h>
 #endif
+#ifdef _POSIX_ASYNCHRONOUS_IO
+    #include <aio.h>
+#endif
 
 
 #if PY_MAJOR_VERSION >= 3
@@ -487,6 +490,177 @@ python_read_signalfd(PyObject *module, PyObject *args) {
 #endif /* __NR_signalfd */
 #endif /* posix sigprocmask test */
 
+#ifdef _POSIX_ASYNCHRONOUS_IO
+typedef struct {
+    PyObject_HEAD
+    char own_buf;
+    struct aiocb cb;
+} python_aiocb_object;
+
+static PyMethodDef python_aiocb_methods[] = {
+    {NULL, NULL, 0, NULL}
+};
+
+static void
+python_aiocb_dealloc(python_aiocb_object *self) {
+    if (self->own_buf) free((void *)self->cb.aio_buf);
+    self->ob_type->tp_free((PyObject *)self);
+}
+
+PyTypeObject python_aiocb_type = {
+    PyObject_HEAD_INIT(&PyType_Type)
+    0,
+    "_eventfs.aiocb",
+    sizeof(python_aiocb_object),
+    0,
+    (destructor)python_aiocb_dealloc,          /* tp_dealloc */
+    0,                                         /* tp_print */
+    0,                                         /* tp_getattr */
+    0,                                         /* tp_setattr */
+    0,                                         /* tp_compare */
+    0,                                         /* tp_repr */
+    0,                                         /* tp_as_number */
+    0,                                         /* tp_as_sequence */
+    0,                                         /* tp_as_mapping */
+    0,                                         /* tp_hash */
+    0,                                         /* tp_call */
+    0,                                         /* tp_str */
+    0,                                         /* tp_getattro */
+    0,                                         /* tp_setattro */
+    0,                                         /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                        /* tp_flags */
+    0,                                         /* tp_doc */
+    0,                                         /* tp_traverse */
+    0,                                         /* tp_clear */
+    0,                                         /* tp_richcompare */
+    0,                                         /* tp_weaklistoffset */
+    0,                                         /* tp_iter */
+    0,                                         /* tp_iternext */
+    python_aiocb_methods,                      /* tp_methods */
+    0,                                         /* tp_members */
+    0,                                         /* tp_getset */
+    0,                                         /* tp_base */
+    0,                                         /* tp_dict */
+    0,                                         /* tp_descr_get */
+    0,                                         /* tp_descr_set */
+    0,                                         /* tp_dictoffset */
+    0,                                         /* tp_init */
+    PyType_GenericAlloc,                       /* tp_alloc */
+    PyType_GenericNew,                         /* tp_new */
+    PyObject_Del,                              /* tp_free */
+};
+
+static python_aiocb_object *
+build_aiocb(int fd, int nbytes, uint64_t offset, int signo, char *buffer) {
+    python_aiocb_object *pyaiocb;
+    char own_buf = NULL == buffer;
+
+    if (NULL == buffer && !(buffer = malloc(nbytes))) {
+        PyErr_SetString(PyExc_MemoryError, "nbytes too big, malloc failed");
+        return NULL;
+    }
+
+    if (!(pyaiocb = PyObject_New(python_aiocb_object, &python_aiocb_type)))
+        return NULL;
+
+    memset(&pyaiocb->cb, 0, sizeof(struct aiocb));
+
+    pyaiocb->own_buf = own_buf;
+    pyaiocb->cb.aio_fildes = fd;
+    pyaiocb->cb.aio_nbytes = nbytes;
+    pyaiocb->cb.aio_buf = (void *)buffer;
+    pyaiocb->cb.aio_offset = offset;
+    pyaiocb->cb.aio_sigevent.sigev_notify = signo ? SIGEV_SIGNAL : SIGEV_NONE;
+    pyaiocb->cb.aio_sigevent.sigev_signo = signo;
+
+    return pyaiocb;
+}
+
+static PyObject *
+python_read_aiocb_buffer(PyObject *module, PyObject *args) {
+    python_aiocb_object *pyaiocb;
+    int nbytes = -1;
+
+    if (!PyArg_ParseTuple(args, "O!|i", &python_aiocb_type, &pyaiocb, &nbytes))
+        return NULL;
+
+    if (nbytes < 0)
+        nbytes = pyaiocb->cb.aio_nbytes;
+
+    return PyString_FromStringAndSize((const char *)pyaiocb->cb.aio_buf, nbytes);
+}
+
+static char *aio_read_kwargs[] = {"fildes", "nbytes", "offset", "signo", NULL};
+
+static PyObject *
+python_aio_read(PyObject *module, PyObject *args, PyObject *kwargs) {
+    python_aiocb_object *pyaiocb;
+    int fd, nbytes, signo = 0;
+    uint64_t offset = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|ii", aio_read_kwargs,
+                &fd, &nbytes, &offset, &signo))
+        return NULL;
+
+    if (!(pyaiocb = build_aiocb(fd, nbytes, offset, signo, NULL)))
+        return NULL;
+
+    if (aio_read(&pyaiocb->cb)) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        Py_DECREF(pyaiocb);
+        return NULL;
+    }
+
+    return (PyObject *)pyaiocb;
+}
+
+static char *aio_write_kwargs[] = {"fildes", "data", "offset", "signo", NULL};
+
+static PyObject *
+python_aio_write(PyObject *module, PyObject *args, PyObject *kwargs) {
+    python_aiocb_object *pyaiocb;
+    char *data;
+    int fd, nbytes, signo = 0;
+    uint64_t offset = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "is#|ii", aio_write_kwargs,
+                &fd, &data, &nbytes, &offset, &signo))
+        return NULL;
+
+    if (!(pyaiocb = build_aiocb(fd, nbytes, offset, signo, data)))
+        return NULL;
+
+    if (aio_write(&pyaiocb->cb)) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        Py_DECREF(pyaiocb);
+        return NULL;
+    }
+
+    return (PyObject *)pyaiocb;
+}
+
+static PyObject *
+python_aio_return(PyObject *module, PyObject *args) {
+    python_aiocb_object *pyaiocb;
+    int rc;
+
+    if (!PyArg_ParseTuple(args, "O!", &python_aiocb_type, &pyaiocb))
+        return NULL;
+
+    if ((rc = aio_error(&pyaiocb->cb))) {
+        PyErr_SetObject(PyExc_IOError, PyInt_FromLong((long)rc));
+        return NULL;
+    }
+
+    rc = aio_return(&pyaiocb->cb);
+    if (rc == EINVAL) {
+        PyErr_SetObject(PyExc_IOError, PyInt_FromLong((long)EINVAL));
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)rc);
+}
+#endif
 
 static PyMethodDef methods[] = {
 #ifdef __NR_eventfd
@@ -612,6 +786,58 @@ see `man eventfd` for exactly what this does\n\
 :returns:\n\
     a two-tuple representing the signal it received, (signum, reason_code)"},
 #endif
+#endif
+
+#ifdef _POSIX_ASYNCHRONOUS_IO
+    {"read_aiocb_buffer", python_read_aiocb_buffer, METH_VARARGS,
+        "get the contents of the buffer of an aiocb object\n\
+\n\
+:param aiocb: the aiocb object from a previous aio operation\n\
+:type aiocb: aiocb\n\
+\n\
+:param nbytes: the number of bytes to retrieve\n\
+:type nbytes: int\n\
+\n\
+:returns: string, contents of the aiocb struct's buffer"},
+    {"aio_read", (PyCFunction)python_aio_read, METH_VARARGS | METH_KEYWORDS,
+        "queue an asynchronous read from a file descriptor\n\
+\n\
+:param fildesc: file descriptor to read from\n\
+:type fildesc: int\n\
+\n\
+:param nbytes: maximum number of bytes to read\n\
+:type nbytes: int\n\
+\n\
+:param offset: offset of the file to start the read from (default 0)\n\
+:type offset: int\n\
+\n\
+:param signo: signal to send when the read completes (default 0 for none)\n\
+:type signo: int\n\
+\n\
+:returns: an aiocb, which can be used to get the read results"},
+    {"aio_write", (PyCFunction)python_aio_write, METH_VARARGS | METH_KEYWORDS,
+        "queue an asynchronous write to a file descriptor\n\
+\n\
+:param fildesc: file descriptor to write to\n\
+:type fildesc: int\n\
+\n\
+:param data: the data to write into the file descriptor\n\
+:type data: str\n\
+\n\
+:param offset: offset of the file to start the write from (default 0)\n\
+:type offset: int\n\
+\n\
+:param signo: signal to send when the write completes (default 0 for none)\n\
+:type signo: int\n\
+\n\
+:returns: an aiocb, which can be used to get the write return value"},
+    {"aio_return", python_aio_return, METH_VARARGS,
+        "retrieve the return value of an aio operation\n\
+\n\
+:param aiocb: the aiocb representing the aio operation\n\
+:type aiocb: aiocb\n\
+\n\
+:returns: int, what the return value of the synchronous call would have been"},
 #endif
 
     {NULL, NULL, 0, NULL}
