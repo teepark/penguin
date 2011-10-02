@@ -1,8 +1,5 @@
 #include <Python.h>
 
-/* for some reason _Py_FalseStruct is undefined without this in 3.1 */
-#include <boolobject.h>
-
 #include <signal.h>
 #include <unistd.h>
 #include <asm/unistd.h>
