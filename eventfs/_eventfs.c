@@ -673,7 +673,32 @@ python_aio_return(PyObject *module, PyObject *args) {
 
     return PyInt_FromLong((long)rc);
 }
+
+static PyObject *
+python_aio_cancel(PyObject *module, PyObject *args) {
+    python_aiocb_object *pyaiocb = NULL;
+    int fd, rc;
+
+    if (!PyArg_ParseTuple(args, "i|O", &fd, &pyaiocb))
+        return NULL;
+
+    if (Py_None == (PyObject *)pyaiocb)
+        pyaiocb = NULL;
+    else if (&python_aiocb_type != Py_TYPE(pyaiocb)) {
+        PyErr_SetString(PyExc_TypeError,
+                "aiocb must be an aiocb instance or None");
+        return NULL;
+    }
+
+    if (0 > (rc = aio_cancel(fd, pyaiocb ? &pyaiocb->cb : NULL))) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)rc);
+}
 #endif
+
 
 static PyMethodDef methods[] = {
 #ifdef __NR_eventfd
@@ -858,6 +883,18 @@ see `man eventfd` for exactly what this does\n\
 :type aiocb: aiocb\n\
 \n\
 :returns: int, what the return value of the synchronous call would have been"},
+    {"aio_cancel", python_aio_cancel, METH_VARARGS,
+        "cancel an outstanding aio operation\n\
+\n\
+:param fd: file descriptor of the operation(s) to cancel\n\
+:type fd: int\n\
+\n\
+:param aiocb:\n\
+    the specific aio operation to cancel (default of None\n\
+    means attempt canceling everything outstanding for the fd)\n\
+:type aiocb: aiocb\n\
+\n\
+:returns: one of the constants AIO_CANCELED, AIO_NOTCANCELED, or AIO_ALLDONE"},
 #endif
 
     {NULL, NULL, 0, NULL}
@@ -935,6 +972,15 @@ init_eventfs(void) {
 #endif
 #ifdef SIG_SETMASK
     PyModule_AddIntConstant(module, "SIG_SETMASK", SIG_SETMASK);
+#endif
+#ifdef AIO_CANCELED
+    PyModule_AddIntConstant(module, "AIO_CANCELED", AIO_CANCELED);
+#endif
+#ifdef AIO_NOTCANCELED
+    PyModule_AddIntConstant(module, "AIO_NOTCANCELED", AIO_NOTCANCELED);
+#endif
+#ifdef AIO_ALLDONE
+    PyModule_AddIntConstant(module, "AIO_ALLDONE", AIO_ALLDONE);
 #endif
 
 #if PY_MAJOR_VERSION >= 3
