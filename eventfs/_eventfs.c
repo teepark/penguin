@@ -635,6 +635,31 @@ python_aio_write(PyObject *module, PyObject *args, PyObject *kwargs) {
     return (PyObject *)pyaiocb;
 }
 
+static char *aio_fsync_kwargs[] = {"op", "fildes, signo", NULL};
+
+static PyObject *
+python_aio_fsync(PyObject *module, PyObject *args, PyObject *kwargs) {
+    int op, fd, signo = 0;
+    python_aiocb_object *pyaiocb;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|i", aio_fsync_kwargs,
+            &op, &fd, &signo))
+        return NULL;
+
+    if (!(pyaiocb = build_aiocb(fd, 0, 0, signo, NULL)))
+        return NULL;
+
+    if (aio_fsync(op, &pyaiocb->cb)) {
+        PyErr_SetFromErrno(PyExc_IOError);
+        Py_DECREF(pyaiocb);
+        return NULL;
+    }
+
+    Py_DECREF(pyaiocb);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 static PyObject *
 python_aio_error(PyObject *module, PyObject *args) {
     python_aiocb_object *pyaiocb;
@@ -849,8 +874,8 @@ see `man eventfd` for exactly what this does\n\
     {"aio_write", (PyCFunction)python_aio_write, METH_VARARGS | METH_KEYWORDS,
         "queue an asynchronous write to a file descriptor\n\
 \n\
-:param fildesc: file descriptor to write to\n\
-:type fildesc: int\n\
+:param fildes: file descriptor to write to\n\
+:type fildes: int\n\
 \n\
 :param data: the data to write into the file descriptor\n\
 :type data: str\n\
@@ -862,6 +887,19 @@ see `man eventfd` for exactly what this does\n\
 :type signo: int\n\
 \n\
 :returns: an aiocb, which can be used to get the write return value"},
+    {"aio_fsync", (PyCFunction)python_aio_fsync, METH_VARARGS | METH_KEYWORDS,
+        "queue an asyncronous request for an fsync\n\
+\n\
+:param op:\n\
+    the fsync operation to perform: if O_SYNC then it behaves like\n\
+    fsync(2), if it is O_DSYNC then it behaves like fdatasync(2).\n\
+:type op: int\n\
+\n\
+:param fildes: file descriptor for which to sync completed aio operations\n\
+:type fildes: int\n\
+\n\
+:param signo: signal to send when the fsync completes (default 0 for none)\n\
+:type signo: int"},
     {"aio_error", python_aio_error, METH_VARARGS,
         "get the error status of an aio operation\n\
 \n\
