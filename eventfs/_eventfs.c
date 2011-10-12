@@ -495,10 +495,6 @@ typedef struct {
     struct aiocb cb;
 } python_aiocb_object;
 
-static PyMethodDef python_aiocb_methods[] = {
-    {NULL, NULL, 0, NULL}
-};
-
 static void
 python_aiocb_dealloc(python_aiocb_object *self) {
     if (self->own_buf) free((void *)self->cb.aio_buf);
@@ -536,7 +532,7 @@ static PyTypeObject python_aiocb_type = {
     0,                                         /* tp_weaklistoffset */
     0,                                         /* tp_iter */
     0,                                         /* tp_iternext */
-    python_aiocb_methods,                      /* tp_methods */
+    0,                                         /* tp_methods */
     0,                                         /* tp_members */
     0,                                         /* tp_getset */
     0,                                         /* tp_base */
