@@ -97,7 +97,7 @@ python_write_eventfd(PyObject *module, PyObject *args) {
 }
 #endif /* __NR_eventfd */
 
-/* set this to eventfs._datatypes.itimerspec at c module import time */
+/* set this to penguin._datatypes.itimerspec at c module import time */
 static PyObject *PyItimerspec = NULL;
 static PyObject *PySiginfo = NULL;
 
@@ -506,7 +506,7 @@ static PyTypeObject python_aiocb_type = {
 #if PY_MAJOR_VERSION < 3
     0,                                         /* ob_size */
 #endif
-    "_eventfs.aiocb",                          /* tp_name */
+    "_penguin.aiocb",                          /* tp_name */
     sizeof(python_aiocb_object),               /* tp_basicsize */
     0,                                         /* tp_itemsize */
     (destructor)python_aiocb_dealloc,          /* tp_dealloc */
@@ -935,25 +935,25 @@ see `man eventfd` for exactly what this does\n\
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef evfsmodule = {
     PyModuleDef_HEAD_INIT,
-    "_eventfs", "", -1, methods,
+    "_penguin", "", -1, methods,
     NULL, NULL, NULL, NULL
 };
 
 PyMODINIT_FUNC
-PyInit__eventfs(void) {
+PyInit__penguin(void) {
     PyObject *module, *datatypes;
     module = PyModule_Create(&evfsmodule);
 
 #else
 
 PyMODINIT_FUNC
-init_eventfs(void) {
+init_penguin(void) {
     PyObject *module, *datatypes;
-    module = Py_InitModule("_eventfs", methods);
+    module = Py_InitModule("_penguin", methods);
 
 #endif
 
-    datatypes = PyImport_ImportModule("eventfs.structs");
+    datatypes = PyImport_ImportModule("penguin.structs");
 
     if (NULL != datatypes && PyObject_HasAttrString(datatypes, "itimerspec")) {
         PyItimerspec = PyObject_GetAttrString(datatypes, "itimerspec");

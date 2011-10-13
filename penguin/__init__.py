@@ -1,4 +1,4 @@
-"""bindings to linux 2.6+ eventfs facilities
+"""bindings to linux syscalls missing from the standard library
 
 this module contains python wrapper functions for system calls present
 in recent versions of linux, and some other functions to support them.
@@ -29,4 +29,4 @@ descriptors easier:
     - read_aiocb_buffer
 """
 
-from _eventfs import *
+from _penguin import *
