@@ -1,4 +1,5 @@
 import errno
+import glob
 import os
 from setuptools import Extension
 
@@ -8,17 +9,24 @@ from paver.setuputils import setup
 
 
 setup(
-    name="eventfs",
-    description="bindings to linux 2.6+ eventfs facilities",
+    name="penguin",
+    description="bindings to additional linux syscalls and C libraries",
     version="0.1",
     author="Travis Parker",
     author_email="travis.parker@gmail.com",
-    packages=["eventfs"],
-    ext_modules=[Extension(
-        '_eventfs',
-        ['eventfs/_eventfs.c'],
-        extra_link_args=['-laio', '-lrt'],
-        )],
+    packages=["penguin"],
+    ext_modules=[
+        Extension('penguin.fds',
+            ['src/fds.c'],
+            extra_compile_args=["-I."]),
+        Extension('penguin.signals',
+            ['src/signals.c'],
+            extra_compile_args=["-I."]),
+        Extension('penguin.posix_aio',
+            ['src/posix_aio.c'],
+            extra_compile_args=["-I."],
+            extra_link_args=['-laio', '-lrt']),
+    ],
 )
 
 MANIFEST = (
@@ -37,7 +45,7 @@ def sdist():
 
 @task
 def clean():
-    for p in map(path, ('eventfs.egg-info', 'dist', 'build', 'MANIFEST.in')):
+    for p in map(path, ('penguin.egg-info', 'dist', 'build', 'MANIFEST.in')):
         if p.exists():
             if p.isdir():
                 p.rmtree()
@@ -51,6 +59,8 @@ def clean():
                 if exc.args[0] == errno.EACCES:
                     continue
                 raise
+    for p in glob.glob("penguin/*.so"):
+        path(p).remove()
 
 @task
 def test():

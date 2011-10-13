@@ -15,6 +15,9 @@ for how the C functions were mapped into python functions):
     - sigprocmask
     - aio_read
     - aio_write
+    - aio_fsync
+    - aio_cancel
+    - aio_error
     - aio_return
 
 sigprocmask does not create or manipulate a special file descriptor like
@@ -29,4 +32,6 @@ descriptors easier:
     - read_aiocb_buffer
 """
 
-from _penguin import *
+from penguin.fds import *
+from penguin.signals import *
+from penguin.posix_aio import *
