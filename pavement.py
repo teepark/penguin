@@ -26,6 +26,10 @@ setup(
             ['src/posix_aio.c'],
             extra_compile_args=["-I."],
             extra_link_args=['-laio', '-lrt']),
+        Extension('penguin.linux_kaio',
+            ['src/linux_kaio.c'],
+            extra_compile_args=["-I."],
+            extra_link_args=['-laio']),
     ],
 )
 

@@ -75,7 +75,7 @@ build_aiocb(int fd, int nbytes, uint64_t offset, int signo, char *buffer) {
     if (!(pyaiocb = PyObject_New(python_aiocb_object, &python_aiocb_type)))
         return NULL;
 
-    memset(&pyaiocb->cb, 0, sizeof(struct aiocb));
+    memset(&pyaiocb->cb, '\0', sizeof(struct aiocb));
 
     pyaiocb->own_buf = own_buf;
     pyaiocb->cb.aio_fildes = fd;
