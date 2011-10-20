@@ -1,7 +1,8 @@
-import errno, os, time, signal, eventfs
+import errno, os, time, signal
+from penguin import posix_aio, signals, fds
 
-eventfs.sigprocmask(eventfs.SIG_BLOCK, [signal.SIGIO])
-sfd = eventfs.signalfd(-1, [signal.SIGIO])
+signals.sigprocmask(signals.SIG_BLOCK, [signal.SIGIO])
+sfd = fds.signalfd(-1, [signal.SIGIO])
 
 fd = os.open("TODO", os.O_RDONLY)
 max, min = 0, 500
@@ -13,12 +14,12 @@ dtotal = 0
 count = 50000
 for i in xrange(count):
     t = time.time()
-    op = eventfs.aio_read(fd, 256, signo=signal.SIGIO)
+    op = posix_aio.aio_read(fd, 256, signo=signal.SIGIO)
     t = time.time() - t
     total += t
 
-    eventfs.read_signalfd(sfd)
-    eventfs.aio_return(op)
+    fds.read_signalfd(sfd)
+    posix_aio.aio_return(op)
 
     if t > max:
         max = t
