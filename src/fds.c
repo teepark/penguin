@@ -95,7 +95,7 @@ python_write_eventfd(PyObject *module, PyObject *args) {
  * timerfd
  */
 
-/* set this to penguin._datatypes.itimerspec at c module import time */
+/* set this to penguin.structs.itimerspec at c module import time */
 static PyObject *PyItimerspec = NULL;
 static PyObject *PySiginfo = NULL;
 

@@ -8,6 +8,79 @@
 
 typedef struct {
     PyObject_HEAD
+    char own_buf;
+    struct iocb cb;
+} python_iocb_object;
+
+static PyMemberDef python_iocb_members[] = {
+    {"key", T_UINT, sizeof(PyObject) + sizeof(char) + sizeof(void *),
+        READONLY, ""}
+};
+
+static void
+python_iocb_dealloc(python_iocb_object *self) {
+    if (self->own_buf) free((void *)self->cb.u.c.buf);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyTypeObject python_iocb_type = {
+    PyObject_HEAD_INIT(&PyType_Type)
+#if PY_MAJOR_VERSION < 3
+    0,                                         /* ob_size */
+#endif
+    "penguin.linux_kaio.iocb",                 /* tp_name */
+    sizeof(python_iocb_object),                /* tp_basicsize */
+    0,                                         /* tp_itemsize */
+    (destructor)python_iocb_dealloc,           /* tp_dealloc */
+    0,                                         /* tp_print */
+    0,                                         /* tp_getattr */
+    0,                                         /* tp_setattr */
+    0,                                         /* tp_compare */
+    0,                                         /* tp_repr */
+    0,                                         /* tp_as_number */
+    0,                                         /* tp_as_sequence */
+    0,                                         /* tp_as_mapping */
+    0,                                         /* tp_hash */
+    0,                                         /* tp_call */
+    0,                                         /* tp_str */
+    0,                                         /* tp_getattro */
+    0,                                         /* tp_setattro */
+    0,                                         /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                        /* tp_flags */
+    0,                                         /* tp_doc */
+    0,                                         /* tp_traverse */
+    0,                                         /* tp_clear */
+    0,                                         /* tp_richcompare */
+    0,                                         /* tp_weaklistoffset */
+    0,                                         /* tp_iter */
+    0,                                         /* tp_iternext */
+    0,                                         /* tp_methods */
+    python_iocb_members,                       /* tp_members */
+    0,                                         /* tp_getset */
+    0,                                         /* tp_base */
+    0,                                         /* tp_dict */
+    0,                                         /* tp_descr_get */
+    0,                                         /* tp_descr_set */
+    0,                                         /* tp_dictoffset */
+    0,                                         /* tp_init */
+    PyType_GenericAlloc,                       /* tp_alloc */
+    PyType_GenericNew,                         /* tp_new */
+    PyObject_Del,                              /* tp_free */
+};
+
+static python_iocb_object *
+build_iocb(char own_buf) {
+    python_iocb_object *pyiocb;
+
+    if (!(pyiocb = PyObject_New(python_iocb_object, &python_iocb_type)))
+        return NULL;
+    pyiocb->own_buf = own_buf;
+
+    return pyiocb;
+}
+
+typedef struct {
+    PyObject_HEAD
     char released;
     io_context_t context;
 } python_context_object;
@@ -75,7 +148,7 @@ build_context(unsigned maxevents) {
         return NULL;
 
     pycontext->released = 0;
-    memset(&pycontext->context, '\0', sizeof(io_context_t));
+    pycontext->context = 0;
 
     if ((err = io_setup(maxevents, &pycontext->context))) {
         PyErr_SetObject(PyExc_IOError, PyInt_FromLong((long)-err));
@@ -83,74 +156,6 @@ build_context(unsigned maxevents) {
     }
 
     return pycontext;
-}
-
-typedef struct {
-    PyObject_HEAD
-    char own_buf;
-    struct iocb cb;
-} python_iocb_object;
-
-static void
-python_iocb_dealloc(python_iocb_object *self) {
-    if (self->own_buf) free((void *)self->cb.u.c.buf);
-    Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static PyTypeObject python_iocb_type = {
-    PyObject_HEAD_INIT(&PyType_Type)
-#if PY_MAJOR_VERSION < 3
-    0,                                         /* ob_size */
-#endif
-    "penguin.linux_kaio.iocb",                 /* tp_name */
-    sizeof(python_iocb_object),                /* tp_basicsize */
-    0,                                         /* tp_itemsize */
-    (destructor)python_iocb_dealloc,           /* tp_dealloc */
-    0,                                         /* tp_print */
-    0,                                         /* tp_getattr */
-    0,                                         /* tp_setattr */
-    0,                                         /* tp_compare */
-    0,                                         /* tp_repr */
-    0,                                         /* tp_as_number */
-    0,                                         /* tp_as_sequence */
-    0,                                         /* tp_as_mapping */
-    0,                                         /* tp_hash */
-    0,                                         /* tp_call */
-    0,                                         /* tp_str */
-    0,                                         /* tp_getattro */
-    0,                                         /* tp_setattro */
-    0,                                         /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT,                        /* tp_flags */
-    0,                                         /* tp_doc */
-    0,                                         /* tp_traverse */
-    0,                                         /* tp_clear */
-    0,                                         /* tp_richcompare */
-    0,                                         /* tp_weaklistoffset */
-    0,                                         /* tp_iter */
-    0,                                         /* tp_iternext */
-    0,                                         /* tp_methods */
-    0,                                         /* tp_members */
-    0,                                         /* tp_getset */
-    0,                                         /* tp_base */
-    0,                                         /* tp_dict */
-    0,                                         /* tp_descr_get */
-    0,                                         /* tp_descr_set */
-    0,                                         /* tp_dictoffset */
-    0,                                         /* tp_init */
-    PyType_GenericAlloc,                       /* tp_alloc */
-    PyType_GenericNew,                         /* tp_new */
-    PyObject_Del,                              /* tp_free */
-};
-
-static python_iocb_object *
-build_iocb(char own_buf) {
-    python_iocb_object *pyiocb;
-
-    if (!(pyiocb = PyObject_New(python_iocb_object, &python_iocb_type)))
-        return NULL;
-    pyiocb->own_buf = own_buf;
-
-    return pyiocb;
 }
 
 typedef struct {
@@ -209,12 +214,12 @@ static PyTypeObject python_event_type = {
 };
 
 static python_event_object *
-build_event(struct io_event event) {
+build_event(struct io_event *event) {
     python_event_object *pyevent;
 
     if (!(pyevent = PyObject_New(python_event_object, &python_event_type)))
         return NULL;
-    pyevent->event = event;
+    if (event) pyevent->event = *event;
 
     return pyevent;
 }
@@ -310,6 +315,26 @@ python_io_prep_pwrite(PyObject *module, PyObject *args, PyObject *kwargs) {
     return (PyObject *)pyiocb;
 }
 
+static char *io_prep_fsync_kwargs[] = {"fd", "eventfd", NULL};
+
+static PyObject *
+python_io_prep_fsync(PyObject *module, PyObject *args, PyObject *kwargs) {
+    int fd, evfd = 0;
+    python_iocb_object *pyiocb;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|i",
+            io_prep_fsync_kwargs, &fd, &evfd))
+        return NULL;
+
+    if (!(pyiocb = build_iocb(0)))
+        return NULL;
+
+    io_prep_fsync(&pyiocb->cb, fd);
+    if (evfd) io_set_eventfd(&pyiocb->cb, evfd);
+
+    return (PyObject *)pyiocb;
+}
+
 static PyObject *
 python_io_submit(PyObject *module, PyObject *args) {
     int rc;
@@ -319,7 +344,7 @@ python_io_submit(PyObject *module, PyObject *args) {
     python_context_object *pycontext;
 
     if (!PyArg_ParseTuple(args, "O!O",
-            &python_context_type, (PyObject *)&pycontext, &pyiocbs))
+            &python_context_type, (PyObject **)&pycontext, &pyiocbs))
         return NULL;
 
     if (0 > (nr = (long)PyObject_Length(pyiocbs)))
@@ -350,6 +375,31 @@ python_io_submit(PyObject *module, PyObject *args) {
     }
 
     return PyInt_FromLong((long)rc);
+}
+
+static PyObject *
+python_io_cancel(PyObject *module, PyObject *args) {
+    python_context_object *pycontext;
+    python_iocb_object *pyiocb;
+    python_event_object *pyevent;
+    int err;
+
+    if (!PyArg_ParseTuple(args, "O!O!",
+                &python_context_type, &pycontext,
+                &python_iocb_type, &pyiocb))
+        return NULL;
+
+    if (!(pyevent = build_event(NULL)))
+        return NULL;
+    memset(&pyevent->event, '\0', sizeof(struct io_event));
+
+    if ((err = io_cancel(pycontext->context, &pyiocb->cb, &pyevent->event))) {
+        PyErr_SetObject(PyExc_IOError, PyInt_FromLong((long)-err));
+        Py_DECREF(pyevent);
+        return NULL;
+    }
+
+    return (PyObject *)pyevent;
 }
 
 static char *io_getevents_kwargs[] = {
@@ -399,7 +449,7 @@ python_io_getevents(PyObject *module, PyObject *args, PyObject *kwargs) {
         return NULL;
 
     for (i = 0; i < rc; ++i) {
-        if (!(pyevent = build_event(events[i]))) {
+        if (!(pyevent = build_event(&events[i]))) {
             Py_DECREF(result);
             return NULL;
         }
@@ -452,8 +502,15 @@ static PyMethodDef methods[] = {
         METH_VARARGS | METH_KEYWORDS,
         "blah blah docstring"},
 
+    {"io_prep_fsync", (PyCFunction)python_io_prep_fsync,
+        METH_VARARGS | METH_KEYWORDS,
+        "blah blah docstring"},
+
     {"io_submit", python_io_submit, METH_VARARGS,
         "blh blah docstring"},
+
+    {"io_cancel", python_io_cancel, METH_VARARGS,
+        "blah blah docstring"},
 
     {"io_getevents", (PyCFunction)python_io_getevents,
         METH_VARARGS | METH_KEYWORDS,

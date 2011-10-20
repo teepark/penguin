@@ -1,4 +1,5 @@
 #include <Python.h>
+#include <structmember.h>
 
 #if PY_MAJOR_VERSION >= 3
     #define PyInt_FromLong             PyLong_FromLong
