@@ -1,0 +1,1 @@
+#define LIBAIO_H_MISSING

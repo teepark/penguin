@@ -4,6 +4,8 @@
 #include <libaio.h>
 #include <unistd.h>
 
+#ifndef LIBAIO_H_MISSING
+
 typedef struct {
     PyObject_HEAD
     char released;
@@ -431,8 +433,11 @@ python_read_event_buffer(PyObject *module, PyObject *pyevent) {
     return PyString_FromStringAndSize(event.obj->u.c.buf, event.res);
 }
 
+#endif /* ndef LIBAIO_H_MISSING */
+
 
 static PyMethodDef methods[] = {
+#ifndef LIBAIO_H_MISSING
     {"io_setup", python_io_setup, METH_VARARGS,
         "blahblah docstring"},
 
@@ -459,6 +464,7 @@ static PyMethodDef methods[] = {
 
     {"read_event_buffer", python_read_event_buffer, METH_O,
         "blah blah docstring"},
+#endif /* ndef LIBAIO_H_MISSING */
 
     {NULL, NULL, 0, NULL}
 };
