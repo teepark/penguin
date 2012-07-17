@@ -352,11 +352,14 @@ python_io_submit(PyObject *module, PyObject *args) {
 
     iocbpp = malloc(nr * sizeof(struct iocb *));
 
-    if (!(iter = PyObject_GetIter(pyiocbs)))
+    if (!(iter = PyObject_GetIter(pyiocbs))) {
+        free(iocbpp);
         return NULL;
+    }
 
     while ((item = PyIter_Next(iter))) {
         if (&python_iocb_type != Py_TYPE(item)) {
+            free(iocbpp);
             Py_DECREF(item);
             Py_DECREF(iter);
             PyErr_SetString(PyExc_TypeError, "iocbs must be iocb instances");
@@ -370,9 +373,11 @@ python_io_submit(PyObject *module, PyObject *args) {
     Py_DECREF(iter);
 
     if (0 > (rc = io_submit(pycontext->context, nr, iocbpp))) {
+        free(iocbpp);
         PyErr_SetObject(PyExc_IOError, PyInt_FromLong((long)-rc));
         return NULL;
     }
+    free(iocbpp);
 
     return PyInt_FromLong((long)rc);
 }
