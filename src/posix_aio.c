@@ -333,6 +333,7 @@ static struct PyModuleDef posix_aio_module = {
 PyMODINIT_FUNC
 PyInit_posix_aio(void) {
     PyObject *module;
+    if (PyType_Ready(&python_aiocb_type)) return NULL;
     module = PyModule_Create(&posix_aio_module);
 
 #else
@@ -340,6 +341,7 @@ PyInit_posix_aio(void) {
 PyMODINIT_FUNC
 initposix_aio(void) {
     PyObject *module;
+    if (PyType_Ready(&python_aiocb_type)) return;
     module = Py_InitModule("penguin.posix_aio", methods);
 
 #endif
