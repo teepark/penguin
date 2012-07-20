@@ -67,5 +67,12 @@ def clean():
         path(p).remove()
 
 @task
+def docs():
+    # have to touch the automodules to build them every time since changes to
+    # the module's docstrings won't affect the timestamp of the .rst file
+    sh("find docs/source/penguin -name *.rst | xargs touch")
+    sh("cd docs; make html")
+
+@task
 def test():
     sh("nosetests")

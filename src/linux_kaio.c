@@ -177,26 +177,26 @@ python_iocontext_destroy(PyObject *self, PyObject *iamnull) {
 }
 
 static char *iocontext_prep_read_kwargs[] = {
-    "fd", "count", "offset", "eventfd", NULL};
+    "fd", "nbytes", "offset", "eventfd", NULL};
 
 static PyObject *
 python_iocontext_prep_read(PyObject *self, PyObject *args, PyObject *kwargs) {
     python_iocontext_object *pyctx = (python_iocontext_object *)self;
     void *buf, *aligned;
     int fd, evfd = 0;
-    size_t count;
+    size_t nbytes;
     long long offset = 0;
     iocb_with_buffer *iocbwb;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "in|Li",
-            iocontext_prep_read_kwargs, &fd, &count, &offset, &evfd))
+            iocontext_prep_read_kwargs, &fd, &nbytes, &offset, &evfd))
         return NULL;
 
-    if (!(iocbwb = add_iocb(pyctx, IOCB_TYPE_READ, count)))
+    if (!(iocbwb = add_iocb(pyctx, IOCB_TYPE_READ, nbytes)))
         return NULL;
 
     aligned = (void *)ALIGNED(iocbwb->buf);
-    io_prep_pread(&iocbwb->iocb, fd, aligned, count, offset);
+    io_prep_pread(&iocbwb->iocb, fd, aligned, nbytes, offset);
     if (evfd) io_set_eventfd(&iocbwb->iocb, evfd);
 
     return PyInt_FromLong((long)pyctx->occupied - 1);
@@ -300,13 +300,14 @@ static PyObject *
 python_iocontext_getevents(PyObject *self, PyObject *args, PyObject *kwargs) {
     python_iocontext_object *pyctx = (python_iocontext_object *)self;
     char found;
-    int i, j, num, max, min = 1;
+    int i, j, num, max = pyctx->occupied,
+        min = 1;
     PyObject *result, *item, *pytimeout = Py_None;
     struct timespec timeout;
     struct timespec *timeoutp = &timeout;
     struct io_event *events;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|iO",
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|iiO",
             iocontext_getevents_kwargs, &max, &min, &pytimeout))
         return NULL;
 
@@ -371,17 +372,129 @@ python_iocontext_getevents(PyObject *self, PyObject *args, PyObject *kwargs) {
 }
 
 static PyMethodDef iocontext_methods[] = {
-    {"destroy", python_iocontext_destroy, METH_NOARGS, ""},
+    {"destroy", python_iocontext_destroy, METH_NOARGS,
+        "de-activate this iocontext object"},
     {"prep_read", (PyCFunction)python_iocontext_prep_read,
-        METH_VARARGS | METH_KEYWORDS, ""},
+        METH_VARARGS | METH_KEYWORDS,
+        "set up a read operation on a file descriptor\n\
+\n\
+:param int fd: the file descriptor from which to read\n\
+\n\
+:param int nbytes:\n\
+    the number of bytes to read.\n\
+\n\
+    .. note::\n\
+\n\
+    if doing direct I/O (O_DIRECT set on the file descriptor), this\n\
+    will have to be a multiple of ``penguin.linux_kaio.ALIGN_TO``\n\
+\n\
+:param int offset:\n\
+    the position in the file from which to begin the read (default 0)\n\
+\n\
+    .. note::\n\
+\n\
+    if doing direct I/O (O_DIRECT set on the file descriptor), this\n\
+    will have to be a multiple of ``penguin.linux_kaio.ALIGN_TO``\n\
+\n\
+:param int eventfd:\n\
+    the eventfd to notify when the read is complete (default None for no\n\
+    notification)\n\
+\n\
+:returns: the integer index of this operation in the iocontext\n\
+"},
     {"prep_write", (PyCFunction)python_iocontext_prep_write,
-        METH_VARARGS | METH_KEYWORDS, ""},
+        METH_VARARGS | METH_KEYWORDS,
+        "set up a write operation on a file descriptor\n\
+\n\
+:param int fd: the file descriptor to which to write\n\
+\n\
+:param str data: the data to write to the file\n\
+\n\
+:param int offset:\n\
+    the position in the file from which to start (over-)writing (default 0)\n\
+\n\
+    .. note::\n\
+\n\
+    if doing direct I/O (O_DIRECT set on the file descriptor), this\n\
+    will have to be a multiple of ``penguin.linux_kaio.ALIGN_TO``\n\
+\n\
+:param int eventfd:\n\
+    the eventfd to notify when the write is complete (default None for no\n\
+    notification)\n\
+\n\
+:returns: the integer index of this operation in the iocontext\n\
+"},
     {"prep_fsync", (PyCFunction)python_iocontext_prep_fsync,
-        METH_VARARGS | METH_KEYWORDS, ""},
-    {"submit", python_iocontext_submit, METH_NOARGS, ""},
-    {"cancel", python_iocontext_cancel, METH_VARARGS, ""},
+        METH_VARARGS | METH_KEYWORDS,
+        "set up an fsync operation on a file descriptor\n\
+\n\
+:param int fd: the file descriptor to fsync\n\
+\n\
+:param int eventfd:\n\
+    the eventfd to notify when the fsync has completed (default None for no\n\
+    notification)\n\
+\n\
+:returns: the integer index of this operation in the iocontext\n\
+"},
+    {"submit", python_iocontext_submit, METH_NOARGS,
+        "submit all prepared operations on this iocontext\n\
+\n\
+:returns: the number of io operations submitted\n\
+"},
+    {"cancel", python_iocontext_cancel, METH_VARARGS,
+        "attempt to cancel a previously submitted io operation\n\
+\n\
+:param int index:\n\
+    the index of the operation to cancel (this was returned by\n\
+    :meth:`prep_read`, :meth:`prep_write`, or :meth:`prep_fsync`)\n\
+"},
     {"getevents", (PyCFunction)python_iocontext_getevents,
-        METH_VARARGS | METH_KEYWORDS, ""},
+        METH_VARARGS | METH_KEYWORDS,
+        "retrieve the results of io operations\n\
+\n\
+:param int max:\n\
+    maximum number of results to return (defaults to the total number of\n\
+    operations in the context)\n\
+\n\
+:param int min: minimum number of results to return (default 1)\n\
+\n\
+:param timeout:\n\
+    maximum time to block waiting for ``min`` events\n\
+    (default None for unlimited)\n\
+:type timeout: int, float or None\n\
+\n\
+:returns:\n\
+    a list with one entry for every completed io operation in the\n\
+    context, each located at the index that was returned from the ``prep_*``\n\
+    method call\n\
+\n\
+io operations might have a ``None`` result for any one of a number of\n\
+reasons:\n\
+\n\
+- the operation's result was returned in a previous ``getevents`` invocation\n\
+\n\
+- the operation wasn't yet complete but ``min`` other operations were\n\
+\n\
+- the operation wasn't yet complete and ``timeout`` expired\n\
+\n\
+- the operation was added after :meth:`submit` was called\n\
+\n\
+- ``max`` other operations are also complete and have their results returned\n\
+\n\
+the result type depends on the type of the original request:\n\
+\n\
+read requests\n\
+    a string of the data that was read\n\
+\n\
+write requests\n\
+    a nonnegative integer of the number of bytes written\n\
+\n\
+fsync requests\n\
+    ``True`` for success\n\
+\n\
+all operation types can have negative numbers as a result, in that case it\n\
+is ``-errno``\n\
+"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -495,6 +608,8 @@ PyInit_linux_kaio(void) {
     PyObject *module = PyModule_Create(&linux_kaio_module);
     alignment_size();
     PyModule_AddIntConstant(module, "ALIGN_TO", align_to);
+    PyModule_AddObject(module, "iocontext",
+            (PyObject *)(&python_iocontext_type));
     return module;
 }
 
@@ -506,6 +621,8 @@ initlinux_kaio(void) {
     PyObject *module = Py_InitModule("penguin.linux_kaio", module_methods);
     alignment_size();
     PyModule_AddIntConstant(module, "ALIGN_TO", align_to);
+    PyModule_AddObject(module, "iocontext",
+            (PyObject *)(&python_iocontext_type));
 };
 
 #endif

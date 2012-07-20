@@ -35,3 +35,4 @@ descriptors easier:
 from penguin.fds import *
 from penguin.signals import *
 from penguin.posix_aio import *
+from penguin.linux_kaio import *

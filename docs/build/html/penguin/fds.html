@@ -1,0 +1,280 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>penguin.fds – Special File Descriptors &mdash; penguin 0.1.0dev documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1.0dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="penguin 0.1.0dev documentation" href="../index.html" />
+    <link rel="next" title="penguin.signals – Controlling Signals" href="signals.html" />
+    <link rel="prev" title="Welcome to penguin’s documentation!" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="signals.html" title="penguin.signals – Controlling Signals"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="../index.html" title="Welcome to penguin’s documentation!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">penguin 0.1.0dev documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-penguin.fds">
+<span id="penguin-fds-special-file-descriptors"></span><h1><a class="reference internal" href="#module-penguin.fds" title="penguin.fds"><tt class="xref py py-mod docutils literal"><span class="pre">penguin.fds</span></tt></a> &#8211; Special File Descriptors<a class="headerlink" href="#module-penguin.fds" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="penguin.fds.eventfd">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">eventfd</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.eventfd" title="Permalink to this definition">¶</a></dt>
+<dd><p>create a file descriptor for event notification</p>
+<p>see <cite>man 2 eventfd</cite> for more complete documentation</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>initval</strong> (<em>non-negative int</em>) &#8211; where to initialize the new eventfd&#8217;s counter (default 0)</li>
+<li><strong>flags</strong> (<em>int</em>) &#8211; <p>flags to apply for the new file descriptor (default 0)</p>
+<p>this argument won&#8217;t be available on kernels without eventfd2(2)</p>
+</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">integer, a new eventfd file descriptor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="penguin.fds.read_eventfd">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">read_eventfd</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.read_eventfd" title="Permalink to this definition">¶</a></dt>
+<dd><p>read the counter out of an eventfd-created file descriptor</p>
+<p>utility method, equivalent to struct.unpack(&#8216;Q&#8217;, os.read(fd, 8))</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fd</strong> (<em>int</em>) &#8211; the file descriptor from which to read an event</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">integer, the value read from the eventfd descriptor</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="penguin.fds.read_signalfd">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">read_signalfd</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.read_signalfd" title="Permalink to this definition">¶</a></dt>
+<dd><p>read signal info from a file descriptor created with signalfd</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fd</strong> (<em>int</em>) &#8211; file descriptor to read a signal from</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">a two-tuple representing the signal it received, (signum, reason_code)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="penguin.fds.signalfd">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">signalfd</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.signalfd" title="Permalink to this definition">¶</a></dt>
+<dd><p>create a file descriptor that can be used to accept signals</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>fd</strong> (<em>int</em>) &#8211; signalfd descriptor to modify, or -1 to create a new one</li>
+<li><strong>signals</strong> (<em>iterable of ints</em>) &#8211; signals to receive on the signalfd</li>
+<li><strong>flags</strong> (<em>int</em>) &#8211; flags to apply to the signalfd</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">integer, a new signalfd descriptor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="penguin.fds.timerfd_create">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">timerfd_create</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.timerfd_create" title="Permalink to this definition">¶</a></dt>
+<dd><p>create a new timer and return a file descriptor that refers to it</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>clockid</strong> (<em>int</em>) &#8211; the type of clock to use (default CLOCK_REALTIME)</li>
+<li><strong>flags</strong> (<em>int</em>) &#8211; flags to set on the new fd (default 0)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">integer, a new timerfd descriptor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="penguin.fds.timerfd_gettime">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">timerfd_gettime</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.timerfd_gettime" title="Permalink to this definition">¶</a></dt>
+<dd><p>return the setting of the timer referred to by a file descriptor</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>fd</strong> (<em>int</em>) &#8211; file descriptor to read the timer from</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">a two-tuple with the timer stored in the fd (time remaining until the
+trigger, interval after that)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="penguin.fds.timerfd_settime">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">timerfd_settime</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.timerfd_settime" title="Permalink to this definition">¶</a></dt>
+<dd><p>arm or disarm the timer referred to by a timerfd file descriptor</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>fd</strong> (<em>int</em>) &#8211; the file descriptor to set a timer on</li>
+<li><strong>timeout</strong> (<em>number</em>) &#8211; time in seconds until the timer first triggers</li>
+<li><strong>interval</strong> (<em>number</em>) &#8211; interval in seconds at which to re-trigger the fd after the first fire
+(default of 0 means only trigger once)</li>
+<li><strong>absolute</strong> (<em>int</em>) &#8211; if <cite>True</cite>, sets the timer as absolute time (default False)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a two-tuple with the timer that was previously stored in this fd (time
+remaining until the next trigger, interval after that)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="penguin.fds.write_eventfd">
+<tt class="descclassname">penguin.fds.</tt><tt class="descname">write_eventfd</tt><big>(</big><big>)</big><a class="headerlink" href="#penguin.fds.write_eventfd" title="Permalink to this definition">¶</a></dt>
+<dd><p>add a value into an eventfd-created file descriptor</p>
+<p>utility method, equivalent to os.write(fd, struct.pack(&#8216;Q&#8217;, value))</p>
+<p>see <cite>man eventfd</cite> for exactly what this does</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>fd</strong> (<em>int</em>) &#8211; the file descriptor to be written to</li>
+<li><strong>value</strong> (<em>non-negative int</em>) &#8211; a value to add to the eventfd&#8217;s counter</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="../index.html"
+                        title="previous chapter">Welcome to penguin&#8217;s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="signals.html"
+                        title="next chapter"><tt class="docutils literal"><span class="pre">penguin.signals</span></tt> &#8211; Controlling Signals</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/penguin/fds.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="signals.html" title="penguin.signals – Controlling Signals"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="../index.html" title="Welcome to penguin’s documentation!"
+             >previous</a> |</li>
+        <li><a href="../index.html">penguin 0.1.0dev documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Travis J Parker.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
