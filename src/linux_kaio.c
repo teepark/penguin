@@ -11,7 +11,7 @@
 #define IOCB_TYPE_FSYNC 3
 
 /* alignment must be a power of 2 */
-#define ALIGNED(x) (((uintptr_t)x + align_to) & ~(align_to - 1))
+#define ALIGNED(x) (((uintptr_t)(x) + align_to) & ~(align_to - 1))
 static unsigned int align_to;
 
 #ifndef LIBAIO_H_MISSING
