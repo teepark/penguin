@@ -323,7 +323,10 @@ python_iocontext_getevents(PyObject *self, PyObject *args, PyObject *kwargs) {
         return NULL;
     }
 
+    Py_BEGIN_ALLOW_THREADS
     num = io_getevents(pyctx->context, min, max, events, timeoutp);
+    Py_END_ALLOW_THREADS
+
     if (num < 0) {
         free(events);
         PyErr_SetObject(PyExc_IOError, PyInt_FromLong((long)-num));
@@ -338,25 +341,25 @@ python_iocontext_getevents(PyObject *self, PyObject *args, PyObject *kwargs) {
             if (&pyctx->cbs[i].iocb != events[j].obj) continue;
 
             switch(pyctx->cbs[i].type) {
-            case IOCB_TYPE_READ:
-                if ((long)events[j].res < 0)
+                case IOCB_TYPE_READ:
+                    if ((long)events[j].res < 0)
+                        item = PyInt_FromLong(events[j].res);
+                    else {
+                        item = PyString_FromStringAndSize(
+                                pyctx->cbs[i].iocb.u.c.buf, events[j].res);
+                    }
+                    break;
+                case IOCB_TYPE_WRITE:
                     item = PyInt_FromLong(events[j].res);
-                else {
-                    item = PyString_FromStringAndSize(
-                            pyctx->cbs[i].iocb.u.c.buf, events[j].res);
-                }
-                break;
-            case IOCB_TYPE_WRITE:
-                item = PyInt_FromLong(events[j].res);
-                break;
-            case IOCB_TYPE_FSYNC:
-                if ((long)events[j].res < 0)
-                    item = PyInt_FromLong(events[j].res);
-                else
-                    item = Py_True;
-                break;
-            default:
-                item = Py_None;
+                    break;
+                case IOCB_TYPE_FSYNC:
+                    if ((long)events[j].res < 0)
+                        item = PyInt_FromLong(events[j].res);
+                    else
+                        item = Py_True;
+                    break;
+                default:
+                    item = Py_None;
             }
             found = 1;
             break;

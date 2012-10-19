@@ -49,7 +49,9 @@ python_read_eventfd(PyObject *module, PyObject *args) {
     if (!PyArg_ParseTuple(args, "i", &fd))
         return NULL;
 
+    Py_BEGIN_ALLOW_THREADS
     length = read(fd, (void *)&val, 8);
+    Py_END_ALLOW_THREADS
 
     if (length < 0) {
         PyErr_SetFromErrno(PyExc_IOError);
@@ -73,7 +75,9 @@ python_write_eventfd(PyObject *module, PyObject *args) {
     if (!PyArg_ParseTuple(args, "iK", &fd, &val))
         return NULL;
 
+    Py_BEGIN_ALLOW_THREADS
     length = write(fd, (const void *)&val, 8);
+    Py_END_ALLOW_THREADS
 
     if (length < 0) {
         PyErr_SetFromErrno(PyExc_IOError);
@@ -321,7 +325,9 @@ python_read_signalfd(PyObject *module, PyObject *args) {
     if (!PyArg_ParseTuple(args, "i", &fd))
         return NULL;
 
+    Py_BEGIN_ALLOW_THREADS
     length = read(fd, (void *)&info, sizeof(struct signalfd_siginfo));
+    Py_END_ALLOW_THREADS
 
     if (length < 0) {
         PyErr_SetFromErrno(PyExc_IOError);
