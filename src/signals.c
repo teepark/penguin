@@ -117,7 +117,6 @@ static PyObject *
 unwrap_sigset(sigset_t *set) {
     PyObject *signals, *num;
     int i;
-    init_signal_count();
 
     if (NULL == (signals = PySet_New(NULL)))
         return NULL;
@@ -242,6 +241,8 @@ initsignals(void) {
     module = Py_InitModule("penguin.signals", methods);
 
 #endif
+
+    init_signal_count();
 
 #ifdef SIG_BLOCK
     PyModule_AddIntConstant(module, "SIG_BLOCK", SIG_BLOCK);
