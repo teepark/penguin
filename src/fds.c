@@ -474,15 +474,11 @@ initfds(void) {
 
     datatypes = PyImport_ImportModule("penguin.structs");
 
-    if (NULL != datatypes && PyObject_HasAttrString(datatypes, "itimerspec")) {
+    if (NULL != datatypes && PyObject_HasAttrString(datatypes, "itimerspec"))
         PyItimerspec = PyObject_GetAttrString(datatypes, "itimerspec");
-        Py_INCREF(PyItimerspec);
-    }
 
-    if (NULL != datatypes && PyObject_HasAttrString(datatypes, "siginfo")) {
+    if (NULL != datatypes && PyObject_HasAttrString(datatypes, "siginfo"))
         PySiginfo = PyObject_GetAttrString(datatypes, "siginfo");
-        Py_INCREF(PySiginfo);
-    }
 
     if (NULL == datatypes)
         PyErr_Clear();
@@ -513,6 +509,31 @@ initfds(void) {
 #endif
 #ifdef SFD_CLOEXEC
     PyModule_AddIntConstant(module, "SFD_CLOEXEC", SFD_CLOEXEC);
+#endif
+
+#ifdef SI_USER
+    PyModule_AddIntConstant(module, "SI_USER", SI_USER);
+#endif
+#ifdef SI_KERNEL
+    PyModule_AddIntConstant(module, "SI_KERNEL", SI_KERNEL);
+#endif
+#ifdef SI_QUEUE
+    PyModule_AddIntConstant(module, "SI_QUEUE", SI_QUEUE);
+#endif
+#ifdef SI_TIMER
+    PyModule_AddIntConstant(module, "SI_TIMER", SI_TIMER);
+#endif
+#ifdef SI_MESGQ
+    PyModule_AddIntConstant(module, "SI_MESGQ", SI_MESGQ);
+#endif
+#ifdef SI_ASYNCIO
+    PyModule_AddIntConstant(module, "SI_ASYNCIO", SI_ASYNCIO);
+#endif
+#ifdef SI_SIGIO
+    PyModule_AddIntConstant(module, "SI_SIGIO", SI_SIGIO);
+#endif
+#ifdef SI_TKILL
+    PyModule_AddIntConstant(module, "SI_TKILL", SI_TKILL);
 #endif
 
 #if PY_MAJOR_VERSION >= 3

@@ -1,3 +1,6 @@
-- pull more siginfo fields out in read_signalfd (really in unwrap_siginfo)
-- int constants for the possible values of signalfd_siginfo.ssi_code
-- potential segfaults in linux_kaio
+- "svipc" module supporting System V IPC constructs
+  - msgget(2)
+  - msgctl(2)
+  - msgsnd(2)
+  - msgrcv(2)
+  - this probably needs a higher-level interface, especially with msgctl(2)
