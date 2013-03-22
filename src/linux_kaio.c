@@ -545,9 +545,9 @@ static PyTypeObject python_iocontext_type = {
     0,                                         /* tp_descr_set */
     0,                                         /* tp_dictoffset */
     0,                                         /* tp_init */
-    PyType_GenericAlloc,                       /* tp_alloc */
-    PyType_GenericNew,                         /* tp_new */
-    PyObject_Del,                              /* tp_free */
+    0,                                         /* tp_alloc */
+    0,                                         /* tp_new */
+    0,                                         /* tp_free */
 };
 
 #endif /* ndef LIBAIO_H_MISSING */
