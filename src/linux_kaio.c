@@ -165,17 +165,6 @@ python_iocontext_dealloc(python_iocontext_object *self) {
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *
-python_iocontext_destroy(PyObject *self, PyObject *iamnull) {
-    python_iocontext_object *pyctx = (python_iocontext_object *)self;
-
-    if (destroy_context(pyctx, 1))
-        return NULL;
-
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
 static char *iocontext_prep_read_kwargs[] = {
     "fd", "nbytes", "offset", "eventfd", NULL};
 
@@ -375,8 +364,6 @@ python_iocontext_getevents(PyObject *self, PyObject *args, PyObject *kwargs) {
 }
 
 static PyMethodDef iocontext_methods[] = {
-    {"destroy", python_iocontext_destroy, METH_NOARGS,
-        "de-activate this iocontext object"},
     {"prep_read", (PyCFunction)python_iocontext_prep_read,
         METH_VARARGS | METH_KEYWORDS,
         "set up a read operation on a file descriptor\n\
