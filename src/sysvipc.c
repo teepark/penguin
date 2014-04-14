@@ -3,6 +3,7 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
+#include <sys/shm.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -12,6 +13,7 @@
 static PyObject *PyIpcPerm = NULL;
 static PyObject *PyMsqidDs = NULL;
 static PyObject *PySemidDs = NULL;
+static PyObject *PyShmidDs = NULL;
 
 /* memory page size. this will be the default max size for msgrcv */
 static int pagesize;
@@ -147,6 +149,54 @@ end:
 }
 
 static PyObject *
+pythonify_shmds(struct shmid_ds *sds) {
+    PyObject *obj, *args, *result = NULL;
+
+    if (NULL == (obj = pythonify_ipcperm(&sds->shm_perm)))
+        return NULL;
+
+    if (NULL == (args = PyTuple_New(8))) {
+        Py_DECREF(obj);
+        return NULL;
+    }
+    PyTuple_SET_ITEM(args, 0, obj);
+
+    if (NULL == (obj = PyLong_FromSize_t(sds->shm_segsz)))
+        goto end;
+    PyTuple_SET_ITEM(args, 1, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)sds->shm_atime)))
+        goto end;
+    PyTuple_SET_ITEM(args, 2, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)sds->shm_dtime)))
+        goto end;
+    PyTuple_SET_ITEM(args, 3, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)sds->shm_ctime)))
+        goto end;
+    PyTuple_SET_ITEM(args, 4, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)sds->shm_cpid)))
+        goto end;
+    PyTuple_SET_ITEM(args, 5, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)sds->shm_lpid)))
+        goto end;
+    PyTuple_SET_ITEM(args, 6, obj);
+
+    if (NULL == (obj = PyLong_FromUnsignedLong((unsigned long)sds->shm_nattch)))
+        goto end;
+    PyTuple_SET_ITEM(args, 7, obj);
+
+    result = PyObject_Call(PyShmidDs, args, NULL);
+
+end:
+    Py_DECREF(args);
+    return result;
+}
+
+static PyObject *
 pythonify_semarray(unsigned short *semvals, unsigned long count) {
     PyObject *result, *num;
     unsigned long i;
@@ -229,6 +279,31 @@ unpythonify_seminfo(PyObject *info, struct semid_ds *sds) {
     obj = PyTuple_GET_ITEM(info, 2);
     if (pytolong(obj, &l)) return -1;
     sds->sem_perm.mode = (unsigned short)l & 0x1ff;
+
+    return 0;
+}
+
+int
+unpythonify_shminfo(PyObject *info, struct shmid_ds *sds) {
+    PyObject *obj;
+    long l;
+
+    if (!PyTuple_Check(info) || PyTuple_GET_SIZE(info) != 3) {
+        PyErr_SetString(PyExc_TypeError, "shm_info must be a three-tuple");
+        return -1;
+    }
+
+    obj = PyTuple_GET_ITEM(info, 0);
+    if (pytolong(obj, &l)) return -1;
+    sds->shm_perm.uid = (uid_t)l;
+
+    obj = PyTuple_GET_ITEM(info, 1);
+    if (pytolong(obj, &l)) return -1;
+    sds->shm_perm.gid = (gid_t)l;
+
+    obj = PyTuple_GET_ITEM(info, 2);
+    if (pytolong(obj, &l)) return -1;
+    sds->shm_perm.mode = (unsigned short)l & 0x1ff;
 
     return 0;
 }
@@ -330,7 +405,7 @@ typedef struct {
     char text[1];
 } msgbuf;
 
-static char *msgctl_kwargs[] = {"id", "cmd", "setinfo", NULL};
+static char *msgctl_kwargs[] = {"id", "cmd", "arg", NULL};
 
 static PyObject *
 python_msgctl(PyObject *self, PyObject *args, PyObject *kwargs) {
@@ -515,18 +590,18 @@ union semun {
     struct seminfo *__buf;
 };
 
-static char *semctl_kwargs[] = {"id", "cmd", "semnum", "arg", NULL};
+static char *semctl_kwargs[] = {"id", "cmd", "semnum", "arg", "sizehint", NULL};
 
 static PyObject *
 python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     int result, semid, cmd, semnum = -1;
-    unsigned long nsems;
+    unsigned long nsems = -1;
     PyObject *info = NULL;
     struct semid_ds sds;
     union semun sun;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|iO", semctl_kwargs,
-                &semid, &cmd, &semnum, &info))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|iOl", semctl_kwargs,
+                &semid, &cmd, &semnum, &info, &nsems))
         return NULL;
 
     if (cmd == IPC_SET && unpythonify_seminfo(info, &sds))
@@ -536,13 +611,15 @@ python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
         sun.buf = &sds;
 
     if (cmd == GETALL || cmd == SETALL) {
-        /* have to stat to get nsems */
-        sun.buf = &sds;
-        if (semctl(semid, semnum, IPC_STAT, sun) < 0) {
-            PyErr_SetFromErrno(PyExc_OSError);
-            return NULL;
+        if (nsems < 0) {
+            /* have to stat to get nsems */
+            sun.buf = &sds;
+            if (semctl(semid, semnum, IPC_STAT, sun) < 0) {
+                PyErr_SetFromErrno(PyExc_OSError);
+                return NULL;
+            }
+            nsems = sds.sem_nsems;
         }
-        nsems = sds.sem_nsems;
 
         /* allocate storage for the array and set it */
         sun.array = malloc(sizeof(unsigned short) * nsems);
@@ -639,6 +716,233 @@ python_semop(PyObject *module, PyObject *args, PyObject *kwargs) {
     return Py_None;
 }
 
+static char *shmget_kwargs[] = {"key", "size", "flags", NULL};
+
+static PyObject *
+python_shmget(PyObject *module, PyObject *args, PyObject *kwargs) {
+    key_t key;
+    size_t length = 0;
+    int shmid, flags = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "l|ni", shmget_kwargs,
+                (long *)&key, &length, &flags))
+        return NULL;
+
+    if (flags & IPC_CREAT && length == 0) {
+        PyErr_SetString(PyExc_ValueError,
+                "length must be provided and positive for IPC_CREAT");
+        return NULL;
+    }
+
+    if (key < 0) {
+        PyErr_SetString(PyExc_ValueError,
+                "key must be IPC_PRIVATE or a postiive int");
+        return NULL;
+    }
+
+    if ((shmid = shmget(key, length, flags)) < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)shmid);
+}
+
+static char *shmctl_kwargs[] = {"id", "cmd", "arg", NULL};
+
+static PyObject *
+python_shmctl(PyObject *self, PyObject *args, PyObject *kwargs) {
+    int shmid, cmd;
+    PyObject *pyinfo = NULL;
+    struct shmid_ds sds;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|O", shmctl_kwargs,
+                &shmid, &cmd, &pyinfo))
+        return NULL;
+
+    if (cmd == IPC_SET && unpythonify_shminfo(pyinfo, &sds))
+        return NULL;
+
+    if (shmctl(shmid, cmd, &sds) < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    if (cmd == IPC_STAT) 
+        return pythonify_shmds(&sds);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+typedef struct {
+    PyObject_HEAD
+    void *shm;
+    size_t size;
+    char readonly;
+} python_shm_object;
+
+static void
+python_shm_dealloc(python_shm_object *self) {
+    if (self->shm) {
+        shmdt(self->shm);
+        self->shm = NULL;
+    }
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static Py_ssize_t
+python_shmbuf_getreadbuf(python_shm_object *self, Py_ssize_t segnum, void **ptr) {
+    if (0 != segnum) {
+        PyErr_SetString(PyExc_SystemError,
+                "accesing invalid shm buffer segment");
+        return -1;
+    }
+
+    if (NULL == self->shm) {
+        PyErr_SetString(PyExc_ValueError, "shm segment detached");
+        return -1;
+    }
+
+    *ptr = self->shm;
+    return (Py_ssize_t)self->size;
+}
+
+static Py_ssize_t
+python_shmbuf_getwritebuf(python_shm_object *self, Py_ssize_t segnum, void **ptr) {
+    if (self->readonly) {
+        PyErr_SetString(PyExc_TypeError, "shm segment is attached read-only");
+        return -1;
+    }
+
+    if (0 != segnum) {
+        PyErr_SetString(PyExc_SystemError,
+                "accesing invalid shm buffer segment");
+        return -1;
+    }
+
+    if (NULL == self->shm) {
+        PyErr_SetString(PyExc_ValueError, "shm segment detached");
+        return -1;
+    }
+
+    *ptr = self->shm;
+    return (Py_ssize_t)self->size;
+}
+
+static Py_ssize_t
+python_shmbuf_segcount(python_shm_object *self, Py_ssize_t *lenp) {
+    if (NULL == self->shm) {
+        PyErr_SetString(PyExc_ValueError, "shm segment detached");
+        return -1;
+    }
+
+    if (lenp) *lenp = (Py_ssize_t)self->size;
+    return 1;
+}
+
+int
+python_shmbuf_getbuf(python_shm_object *self, Py_buffer *buf, int flags) {
+    return PyBuffer_FillInfo(buf, (PyObject *)self, self->shm, self->size,
+            self->readonly, flags);
+}
+
+static PyBufferProcs python_shmbuf = {
+    (readbufferproc)python_shmbuf_getreadbuf,
+    (writebufferproc)python_shmbuf_getwritebuf,
+    (segcountproc)python_shmbuf_segcount,
+    (charbufferproc)python_shmbuf_getbuf,
+    (getbufferproc)python_shmbuf_getbuf
+};
+
+static PyTypeObject python_shm_type = {
+    PyObject_HEAD_INIT(&PyType_Type)
+#if PY_MAJOR_VERSION < 3
+    0,                                         /* ob_size */
+#endif
+    "penguin.sysvipc.shm",                     /* tp_name */
+    sizeof(python_shm_object),                 /* tp_basicsize */
+    0,                                         /* tp_itemsize */
+    (destructor)python_shm_dealloc,            /* tp_dealloc */
+    0,                                         /* tp_print */
+    0,                                         /* tp_getattr */
+    0,                                         /* tp_setattr */
+    0,                                         /* tp_compare */
+    0,                                         /* tp_repr */
+    0,                                         /* tp_as_number */
+    0,                                         /* tp_as_sequence */
+    0,                                         /* tp_as_mapping */
+    0,                                         /* tp_hash */
+    0,                                         /* tp_call */
+    0,                                         /* tp_str */
+    0,                                         /* tp_getattro */
+    0,                                         /* tp_setattro */
+    &python_shmbuf,                            /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT |
+    Py_TPFLAGS_HAVE_NEWBUFFER,                 /* tp_flags */
+    0,                                         /* tp_doc */
+    0,                                         /* tp_traverse */
+    0,                                         /* tp_clear */
+    0,                                         /* tp_richcompare */
+    0,                                         /* tp_weaklistoffset */
+    0,                                         /* tp_iter */
+    0,                                         /* tp_iternext */
+    0,                                         /* tp_methods */
+    0,                                         /* tp_members */
+    0,                                         /* tp_getset */
+    0,                                         /* tp_base */
+    0,                                         /* tp_dict */
+    0,                                         /* tp_descr_get */
+    0,                                         /* tp_descr_set */
+    0,                                         /* tp_dictoffset */
+    0,                                         /* tp_init */
+    0,                                         /* tp_alloc */
+    0,                                         /* tp_new */
+    0,                                         /* tp_free */
+};
+
+static char *shmat_kwargs[] = {"id", "flags", "sizehint", NULL};
+
+static PyObject *
+python_shmat(PyObject *module, PyObject *args, PyObject *kwargs) {
+    int shmid, flags = 0;
+    size_t size = 0;
+    void *shm;
+    python_shm_object *pyshm;
+    PyObject *memview;
+    struct shmid_ds sds;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|in", shmat_kwargs,
+                &shmid, &flags, &size))
+        return NULL;
+
+    if (0 == size) {
+        /* have to stat to get the segment size */
+        if (shmctl(shmid, IPC_STAT, &sds) < 0) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            return NULL;
+        }
+        size = sds.shm_segsz;
+    }
+
+    /* -1 as a void pointer? so strange. */
+    if ((void *)-1 == (shm = shmat(shmid, NULL, flags))) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    if (!(pyshm = PyObject_New(python_shm_object, &python_shm_type))) {
+        shmdt(shm);
+        return NULL;
+    }
+    pyshm->shm = shm;
+    pyshm->size = size;
+    pyshm->readonly = flags & SHM_RDONLY ? 1 : 0;
+
+    memview = PyMemoryView_FromObject((PyObject *)pyshm);
+    Py_DECREF(pyshm);
+    return memview;
+}
 
 /*
  * module methods struct
@@ -689,7 +993,7 @@ same key.\n\
     ``IPC_RMID``:\n\
         remove the queue entirely\n\
 \n\
-:param setinfo:\n\
+:param arg:\n\
     optional (only for the ``IPC_SET`` cmd) data to set on the message\n\
     queue's metadata. :class:`msg_info<penguin.structs.msg_info>`\n\
     is a namedtuple class with the following fields (all required):\n\
@@ -702,13 +1006,13 @@ same key.\n\
         the group id of the queue's owning group\n\
     perm_mode:\n\
         the integer permission bits (execute bits do nothing)\n\
-:type setinfo: :class:`msg_info<penguin.structs.msg_info>`\n\
+:type arg: :class:`msg_info<penguin.structs.msg_info>`\n\
 \n\
 :returns:\n\
     ``None``, unless ``cmd`` was ``IPC_STAT``, in which case a\n\
     :class:`msqid_ds<penguin.structs.msqid_ds>` struct is returned. It is a\n\
-    namedtuple class with the fields as ``struct msqid_ds`` as described in\n\
-    the msgctl(2) manual.\n\
+    namedtuple class with the same fields as ``struct msqid_ds`` as\n\
+    described in the msgctl(2) man.\n\
 "},
     {"msgsnd", (PyCFunction)python_msgsnd, METH_VARARGS | METH_KEYWORDS,
         "send a message to a queue\n\
@@ -768,7 +1072,7 @@ same key.\n\
     a two-tuple of the priority the message was submitted with and the\n\
     message string itself.\n\
 "},
-    {"semget", (PyCFunction)python_semget, METH_VARARGS,
+    {"semget", (PyCFunction)python_semget, METH_VARARGS | METH_KEYWORDS,
         "get and/or create a semaphore set\n\
 \n\
 :param int key: key identifier for the semaphore set\n\
@@ -836,13 +1140,20 @@ same key.\n\
     ``SETALL``: should be a list of ints\n\
     ``SETVAL``: should be an integer\n\
 \n\
+:param int sizehint:\n\
+    for ``GETALL`` and ``SETALL``, provide the number of semaphores in the\n\
+    set so it doesn't have to do an extra ``IPC_STAT`` to find out.\n\
+\n\
+    **warning**: providing a ``sizehint`` that's too big could result in a\n\
+    segfault.\n\
+\n\
 :returns:\n\
     for ``IPC_STAT`` and ``GET*`` commands, returns the answer to the query\n\
     (notably in the case of ``IPC_STAT`` it is a\n\
      :class:`semid_ds<penguin.structs.semid_ds>` instance). otherwise\n\
     ``None``.\n\
 "},
-    {"semop", (PyCFunction)python_semop, METH_VARARGS,
+    {"semop", (PyCFunction)python_semop, METH_VARARGS | METH_KEYWORDS,
         "run a group of semaphore operations\n\
 this function actually uses semtimedop(2), to power the timeout\n\
 \n\
@@ -875,6 +1186,83 @@ this function actually uses semtimedop(2), to power the timeout\n\
 :param (int or float) timeout:\n\
     optional maximum time to block before failing the operations and raising\n\
     with ``EAGAIN``. the default of -1 means no limit.\n\
+"},
+    {"shmget", (PyCFunction)python_shmget, METH_VARARGS | METH_KEYWORDS,
+        "get and/or create a shared memory segment\n\
+\n\
+:param int key: key identifier for the shared memory segment\n\
+\n\
+:param int size:\n\
+    minimum capacity in bytes if allocating a new segment (it will be\n\
+    rounded up to the nearest multiple of ``PAGESIZE``).\n\
+\n\
+:param int flags:\n\
+    (optional) bitwise ORed flags, and permissions in the low 9 bits if the\n\
+    call can create a new shared memory segment. supported flags are:\n\
+\n\
+    ``IPC_CREAT``:\n\
+        create the segment if one doesn't already exist for the key\n\
+    ``IPC_EXCL``:\n\
+        only for use together with ``IPC_CREAT``, causes the function to\n\
+        fail with ``EEXIST`` if a segment already exists for the given key.\n\
+\n\
+:returns: a system-wide unique integer identifier for the new semaphore set\n\
+"},
+    {"shmctl", (PyCFunction)python_shmctl, METH_VARARGS | METH_KEYWORDS,
+        "perform a control operation on a shared memory segment's metadata\n\
+\n\
+:param int id:\n\
+    unique identifier of the segment (as returned by :func:`shmget`)\n\
+\n\
+:param int cmd:\n\
+    a constant to specify which operation to perform. recognized values are:\n\
+\n\
+    ``IPC_STAT``:\n\
+        retrieve the meta information about the shared memory segment\n\
+    ``IPC_SET``:\n\
+        set some fields of the segment's metadata\n\
+    ``IPC_RMID``:\n\
+        remove the shared memory segment entirely\n\
+\n\
+:param arg:\n\
+    optional (only for the ``IPC_SET`` cmd) data to set on the shared memory\n\
+    segment's metadata. :class:`shm_info<penguin.structs.shm_info>`\n\
+    is a namedtuple class with the following fields (all required):\n\
+\n\
+    perm_uid:\n\
+        the user id of the segment's owning user\n\
+    perm_gid:\n\
+        the group id of the segment's owning group\n\
+    perm_mode:\n\
+        the integer permission bits (execute bits do nothing)\n\
+:type arg: :class:`shm_info<penguin.structs.shm_info>`\n\
+\n\
+:returns:\n\
+    ``None``, unless ``cmd`` was ``IPC_STAT``, in which case a\n\
+    :class:`shmid_ds<penguin.structs.shmid_ds>` struct is returned. It is a\n\
+    namedtuple class with the same fields as ``struct shmid_ds`` as\n\
+    described in the shmctl(2) man page.\n\
+"},
+    {"shmat", (PyCFunction)python_shmat, METH_VARARGS | METH_KEYWORDS,
+        "attach to a shared memory segment\n\
+\n\
+:param int id:\n\
+    unique identifier of the segment (as returned by :func:`shmget`)\n\
+\n\
+:param int flags:\n\
+    (optional) flags altering the attachment. the only supported flag is\n\
+    ``SHM_RDONLY``, which makes the attachment read-only.\n\
+\n\
+:param int sizehint:\n\
+    (optional) provide the length of the shared memory segment to which\n\
+    we're attaching. if this is omitted, the method will perform an extra\n\
+    ``semctl(IPC_STAT)`` to get it.\n\
+\n\
+    **warning**: providing a ``sizehint`` that's too big could result in a\n\
+    segfault.\n\
+\n\
+:returns:\n\
+    a memoryview object\n\
 "},
     {NULL, NULL, 0, NULL}
 };
@@ -925,6 +1313,9 @@ initsysvipc(void) {
     PyModule_AddIntConstant(module, "GETZCNT", GETZCNT);
     PyModule_AddIntConstant(module, "SETVAL", SETVAL);
 
+    PyModule_AddIntConstant(module, "SHM_RDONLY", SHM_RDONLY);
+    PyModule_AddIntConstant(module, "SHM_DEST", SHM_DEST);
+
     PyObject *structs = PyImport_ImportModule("penguin.structs");
 
     if (NULL != structs && PyObject_HasAttrString(structs, "ipc_perm"))
@@ -936,8 +1327,15 @@ initsysvipc(void) {
     if (NULL != structs && PyObject_HasAttrString(structs, "semid_ds"))
         PySemidDs = PyObject_GetAttrString(structs, "semid_ds");
 
+    if (NULL != structs && PyObject_HasAttrString(structs, "shmid_ds"))
+        PyShmidDs = PyObject_GetAttrString(structs, "shmid_ds");
+
     if (NULL == structs)
         PyErr_Clear();
+
+    PyType_Ready(&python_shm_type);
+
+
 
 #if PY_MAJOR_VERSION >= 3
     return module;
