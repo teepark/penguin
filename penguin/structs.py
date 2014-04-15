@@ -13,10 +13,16 @@ semid_ds = collections.namedtuple("semid_ds",
 shmid_ds = collections.namedtuple("shmid_ds",
         "shm_perm shm_segsz shm_atime shm_dtime shm_ctime shm_cpid shm_lpid " +
         "shm_nattch")
-msg_info = collections.namedtuple("msg_info",
+msg_setinfo = collections.namedtuple("msg_setinfo",
         "msg_qbytes perm_uid perm_gid perm_mode")
-sem_info = collections.namedtuple("sem_info",
+sem_setinfo = collections.namedtuple("sem_setinfo",
         "perm_uid perm_gid perm_mode")
-shm_info = collections.namedtuple("shm_info",
+shm_setinfo = collections.namedtuple("shm_setinfo",
         "perm_uid perm_gid perm_mode")
 sembuf = collections.namedtuple("sembuf", "sem_num sem_op sem_flg")
+msginfo = collections.namedtuple("msginfo",
+        "msgpool msgmap msgmax msgmnb msgmni msgssz msgtql msgseg")
+seminfo = collections.namedtuple("seminfo",
+        "semmap semmni semmns semmnu semmsl semopm semume semusz semvmx semaem")
+shm_info = collections.namedtuple("shm_info",
+        "used_ids shm_tot shm_rss shm_swp")

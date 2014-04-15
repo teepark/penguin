@@ -14,6 +14,9 @@ static PyObject *PyIpcPerm = NULL;
 static PyObject *PyMsqidDs = NULL;
 static PyObject *PySemidDs = NULL;
 static PyObject *PyShmidDs = NULL;
+static PyObject *PyMsgInfo = NULL;
+static PyObject *PySemInfo = NULL;
+static PyObject *PyShmInfo = NULL;
 
 /* memory page size. this will be the default max size for msgrcv */
 static int pagesize;
@@ -25,7 +28,7 @@ pythonify_ipcperm(struct ipc_perm *perm) {
 
     if (NULL == (args = PyTuple_New(7))) return NULL;
 
-    if (NULL == (obj = PyInt_FromLong((long)perm->__key)))
+    if (NULL == (obj = PyInt_FromLong((long)perm->__key & 0xffffffff)))
         goto fail;
     PyTuple_SET_ITEM(args, 0, obj);
 
@@ -214,6 +217,136 @@ pythonify_semarray(unsigned short *semvals, unsigned long count) {
     return result;
 }
 
+static PyObject *
+pythonify_msginfo(struct msginfo *info) {
+    PyObject *obj, *args, *result = NULL;
+
+    if (NULL == (args = PyTuple_New(8)))
+        return NULL;
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgpool)))
+        goto done;
+    PyTuple_SET_ITEM(args, 0, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgmap)))
+        goto done;
+    PyTuple_SET_ITEM(args, 1, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgmax)))
+        goto done;
+    PyTuple_SET_ITEM(args, 2, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgmnb)))
+        goto done;
+    PyTuple_SET_ITEM(args, 3, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgmni)))
+        goto done;
+    PyTuple_SET_ITEM(args, 4, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgssz)))
+        goto done;
+    PyTuple_SET_ITEM(args, 5, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgtql)))
+        goto done;
+    PyTuple_SET_ITEM(args, 6, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->msgseg)))
+        goto done;
+    PyTuple_SET_ITEM(args, 7, obj);
+
+    result = PyObject_Call(PyMsgInfo, args, NULL);
+
+done:
+    Py_DECREF(args);
+    return result;
+}
+
+static PyObject *
+pythonify_seminfo(struct seminfo *info) {
+    PyObject *obj, *args, *result = NULL;
+
+    if (NULL == (args = PyTuple_New(10)))
+        return NULL;
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semmap)))
+        goto done;
+    PyTuple_SET_ITEM(args, 0, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semmni)))
+        goto done;
+    PyTuple_SET_ITEM(args, 1, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semmns)))
+        goto done;
+    PyTuple_SET_ITEM(args, 2, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semmnu)))
+        goto done;
+    PyTuple_SET_ITEM(args, 3, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semmsl)))
+        goto done;
+    PyTuple_SET_ITEM(args, 4, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semopm)))
+        goto done;
+    PyTuple_SET_ITEM(args, 5, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semume)))
+        goto done;
+    PyTuple_SET_ITEM(args, 6, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semusz)))
+        goto done;
+    PyTuple_SET_ITEM(args, 7, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semvmx)))
+        goto done;
+    PyTuple_SET_ITEM(args, 8, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)info->semaem)))
+        goto done;
+    PyTuple_SET_ITEM(args, 9, obj);
+
+    result = PyObject_Call(PySemInfo, args, NULL);
+
+done:
+    Py_DECREF(args);
+    return result;
+}
+
+static PyObject *
+pythonify_shminfo(struct shm_info *info) {
+    PyObject *args, *obj, *result = NULL;
+
+    if (NULL == (args = PyTuple_New(4)))
+        return NULL;
+
+    if (NULL == (obj = PyInt_FromLong((long)info->used_ids)))
+        goto done;
+    PyTuple_SET_ITEM(args, 0, obj);
+
+    if (NULL == (obj = PyLong_FromUnsignedLong(info->shm_tot)))
+        goto done;
+    PyTuple_SET_ITEM(args, 1, obj);
+
+    if (NULL == (obj = PyLong_FromUnsignedLong(info->shm_rss)))
+        goto done;
+    PyTuple_SET_ITEM(args, 2, obj);
+
+    if (NULL == (obj = PyLong_FromUnsignedLong(info->shm_swp)))
+        goto done;
+    PyTuple_SET_ITEM(args, 3, obj);
+
+    result = PyObject_Call(PyShmInfo, args, NULL);
+
+done:
+    Py_DECREF(args);
+    return result;
+}
+
 int
 pytolong(PyObject *obj, long *target) {
     if (PyInt_Check(obj)) {
@@ -230,12 +363,12 @@ pytolong(PyObject *obj, long *target) {
 }
 
 int
-unpythonify_msginfo(PyObject *info, struct msqid_ds *mqds) {
+unpythonify_msgsetinfo(PyObject *info, struct msqid_ds *mqds) {
     PyObject *obj;
     long l;
 
     if (!PyTuple_Check(info) || PyTuple_GET_SIZE(info) != 4) {
-        PyErr_SetString(PyExc_TypeError, "msg_info must be a four-tuple");
+        PyErr_SetString(PyExc_TypeError, "msg_setinfo must be a four-tuple");
         return -1;
     }
 
@@ -264,7 +397,7 @@ unpythonify_seminfo(PyObject *info, struct semid_ds *sds) {
     long l;
 
     if (!PyTuple_Check(info) || PyTuple_GET_SIZE(info) != 3) {
-        PyErr_SetString(PyExc_TypeError, "sem_info must be a three-tuple");
+        PyErr_SetString(PyExc_TypeError, "sem_setinfo must be a three-tuple");
         return -1;
     }
 
@@ -284,12 +417,12 @@ unpythonify_seminfo(PyObject *info, struct semid_ds *sds) {
 }
 
 int
-unpythonify_shminfo(PyObject *info, struct shmid_ds *sds) {
+unpythonify_shmsetinfo(PyObject *info, struct shmid_ds *sds) {
     PyObject *obj;
     long l;
 
     if (!PyTuple_Check(info) || PyTuple_GET_SIZE(info) != 3) {
-        PyErr_SetString(PyExc_TypeError, "shm_info must be a three-tuple");
+        PyErr_SetString(PyExc_TypeError, "shm_setinfo must be a three-tuple");
         return -1;
     }
 
@@ -412,21 +545,36 @@ python_msgctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     int mqid, cmd;
     PyObject *setinfo = NULL;
     struct msqid_ds mqds;
+    struct msqid_ds *mqdsp = &mqds;
+    struct msginfo mi;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|O", msgctl_kwargs,
                 &mqid, &cmd, &setinfo))
         return NULL;
 
-    if (cmd == IPC_SET && unpythonify_msginfo(setinfo, &mqds))
+    if (cmd == IPC_SET && unpythonify_msgsetinfo(setinfo, mqdsp))
         return NULL;
+#ifdef IPC_INFO
+    if (cmd == IPC_INFO || cmd == MSG_INFO)
+        mqdsp = (struct msqid_ds *)&mi;
+#endif
 
-    if (msgctl(mqid, cmd, &mqds) < 0) {
+    if (msgctl(mqid, cmd, mqdsp) < 0) {
         PyErr_SetFromErrno(PyExc_OSError);
         return NULL;
     }
 
-    if (cmd == IPC_STAT)
-        return pythonify_mqds(&mqds);
+    if (cmd == IPC_STAT
+#ifdef MSG_STAT
+            || cmd == MSG_STAT
+#endif
+            )
+        return pythonify_mqds(mqdsp);
+
+#ifdef IPC_INFO
+    if (cmd == IPC_INFO || cmd == MSG_INFO)
+        return pythonify_msginfo(&mi);
+#endif
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -467,8 +615,8 @@ python_msgget(PyObject *module, PyObject *args, PyObject *kwargs) {
     key_t key = 0;
     int qid, msgflag = 0;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "l|i", msgget_kwargs,
-                (long *)&key, &msgflag))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "k|i", msgget_kwargs,
+                (unsigned long *)&key, &msgflag))
         return NULL;
 
     if (key < 0) {
@@ -595,9 +743,10 @@ static char *semctl_kwargs[] = {"id", "cmd", "semnum", "arg", "sizehint", NULL};
 static PyObject *
 python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     int result, semid, cmd, semnum = -1;
-    unsigned long nsems = -1;
+    long nsems = -1;
     PyObject *info = NULL;
     struct semid_ds sds;
+    struct seminfo si;
     union semun sun;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|iOl", semctl_kwargs,
@@ -607,8 +756,13 @@ python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     if (cmd == IPC_SET && unpythonify_seminfo(info, &sds))
         return NULL;
 
-    if (cmd == IPC_SET || cmd == IPC_STAT)
+    if (cmd == IPC_SET || cmd == IPC_STAT || cmd == SEM_STAT)
         sun.buf = &sds;
+
+#ifdef IPC_INFO
+    if (cmd == IPC_INFO || cmd == SEM_INFO)
+        sun.__buf = &si;
+#endif
 
     if (cmd == GETALL || cmd == SETALL) {
         if (nsems < 0) {
@@ -618,11 +772,14 @@ python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
                 PyErr_SetFromErrno(PyExc_OSError);
                 return NULL;
             }
-            nsems = sds.sem_nsems;
+            nsems = (long)sds.sem_nsems;
         }
 
         /* allocate storage for the array and set it */
-        sun.array = malloc(sizeof(unsigned short) * nsems);
+        if (NULL == (sun.array = malloc(sizeof(unsigned short) * nsems))) {
+            PyErr_SetString(PyExc_MemoryError, "failed malloc");
+            return NULL;
+        }
     }
 
     if (cmd == SETALL) {
@@ -651,8 +808,13 @@ python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
         return NULL;
     }
 
-    if (cmd == IPC_STAT)
+    if (cmd == IPC_STAT || cmd == SEM_STAT)
         return pythonify_sds(&sds);
+
+#ifdef IPC_INFO
+    if (cmd == IPC_INFO || cmd == SEM_INFO)
+        return pythonify_seminfo(&si);
+#endif
 
     if (cmd == GETALL) {
         info = pythonify_semarray(sun.array, nsems);
@@ -755,21 +917,38 @@ python_shmctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     int shmid, cmd;
     PyObject *pyinfo = NULL;
     struct shmid_ds sds;
+    struct shm_info si;
+    struct shmid_ds *sdsp = &sds;
+    int result;
     
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|O", shmctl_kwargs,
                 &shmid, &cmd, &pyinfo))
         return NULL;
 
-    if (cmd == IPC_SET && unpythonify_shminfo(pyinfo, &sds))
+    if (cmd == IPC_SET && unpythonify_shmsetinfo(pyinfo, sdsp))
         return NULL;
 
-    if (shmctl(shmid, cmd, &sds) < 0) {
+#ifdef SHM_INFO
+    if (cmd == SHM_INFO)
+        sdsp = (struct shmid_ds *)&si;
+#endif
+
+    if ((result = shmctl(shmid, cmd, sdsp)) < 0) {
         PyErr_SetFromErrno(PyExc_OSError);
         return NULL;
     }
 
-    if (cmd == IPC_STAT) 
-        return pythonify_shmds(&sds);
+    if (cmd == IPC_STAT
+#ifdef SHM_STAT
+            || cmd == SHM_STAT
+#endif
+            )
+        return pythonify_shmds(sdsp);
+
+#ifdef SHM_INFO
+    if (cmd == SHM_INFO)
+        return pythonify_shminfo(&si);
+#endif
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -995,7 +1174,7 @@ same key.\n\
 \n\
 :param arg:\n\
     optional (only for the ``IPC_SET`` cmd) data to set on the message\n\
-    queue's metadata. :class:`msg_info<penguin.structs.msg_info>`\n\
+    queue's metadata. :class:`msg_setinfo<penguin.structs.msg_setinfo>`\n\
     is a namedtuple class with the following fields (all required):\n\
 \n\
     msg_qbytes:\n\
@@ -1006,7 +1185,7 @@ same key.\n\
         the group id of the queue's owning group\n\
     perm_mode:\n\
         the integer permission bits (execute bits do nothing)\n\
-:type arg: :class:`msg_info<penguin.structs.msg_info>`\n\
+:type arg: :class:`msg_setinfo<penguin.structs.msg_setinfo>`\n\
 \n\
 :returns:\n\
     ``None``, unless ``cmd`` was ``IPC_STAT``, in which case a\n\
@@ -1136,9 +1315,12 @@ same key.\n\
 :param arg:\n\
     an extra argument for those ``cmd``'s that need it:\n\
 \n\
-    ``IPC_SET``: should be a :class:`sem_info<penguin.structs.sem_info`\n\
-    ``SETALL``: should be a list of ints\n\
-    ``SETVAL``: should be an integer\n\
+    ``IPC_SET``:\n\
+        should be a :class:`sem_setinfo<penguin.structs.sem_setinfo`\n\
+    ``SETALL``:\n\
+        should be a list of ints\n\
+    ``SETVAL``:\n\
+        should be an integer\n\
 \n\
 :param int sizehint:\n\
     for ``GETALL`` and ``SETALL``, provide the number of semaphores in the\n\
@@ -1226,7 +1408,7 @@ this function actually uses semtimedop(2), to power the timeout\n\
 \n\
 :param arg:\n\
     optional (only for the ``IPC_SET`` cmd) data to set on the shared memory\n\
-    segment's metadata. :class:`shm_info<penguin.structs.shm_info>`\n\
+    segment's metadata. :class:`shm_setinfo<penguin.structs.shm_setinfo>`\n\
     is a namedtuple class with the following fields (all required):\n\
 \n\
     perm_uid:\n\
@@ -1235,7 +1417,7 @@ this function actually uses semtimedop(2), to power the timeout\n\
         the group id of the segment's owning group\n\
     perm_mode:\n\
         the integer permission bits (execute bits do nothing)\n\
-:type arg: :class:`shm_info<penguin.structs.shm_info>`\n\
+:type arg: :class:`shm_setinfo<penguin.structs.shm_setinfo>`\n\
 \n\
 :returns:\n\
     ``None``, unless ``cmd`` was ``IPC_STAT``, in which case a\n\
@@ -1315,6 +1497,27 @@ initsysvipc(void) {
 
     PyModule_AddIntConstant(module, "SHM_RDONLY", SHM_RDONLY);
     PyModule_AddIntConstant(module, "SHM_DEST", SHM_DEST);
+#ifdef SHM_INFO
+    PyModule_AddIntConstant(module, "SHM_INFO", SHM_INFO);
+#endif
+#ifdef SHM_STAT
+    PyModule_AddIntConstant(module, "SHM_STAT", SHM_STAT);
+#endif
+#ifdef IPC_INFO
+    PyModule_AddIntConstant(module, "IPC_INFO", IPC_INFO);
+#endif
+#ifdef MSG_INFO
+    PyModule_AddIntConstant(module, "MSG_INFO", MSG_INFO);
+#endif
+#ifdef MSG_STAT
+    PyModule_AddIntConstant(module, "MSG_STAT", MSG_STAT);
+#endif
+#ifdef SEM_INFO
+    PyModule_AddIntConstant(module, "SEM_INFO", SEM_INFO);
+#endif
+#ifdef SEM_STAT
+    PyModule_AddIntConstant(module, "SEM_STAT", SEM_STAT);
+#endif
 
     PyObject *structs = PyImport_ImportModule("penguin.structs");
 
@@ -1329,6 +1532,15 @@ initsysvipc(void) {
 
     if (NULL != structs && PyObject_HasAttrString(structs, "shmid_ds"))
         PyShmidDs = PyObject_GetAttrString(structs, "shmid_ds");
+
+    if (NULL != structs && PyObject_HasAttrString(structs, "msginfo"))
+        PyMsgInfo = PyObject_GetAttrString(structs, "msginfo");
+
+    if (NULL != structs && PyObject_HasAttrString(structs, "seminfo"))
+        PySemInfo = PyObject_GetAttrString(structs, "seminfo");
+
+    if (NULL != structs && PyObject_HasAttrString(structs, "shm_info"))
+        PyShmInfo = PyObject_GetAttrString(structs, "shm_info");
 
     if (NULL == structs)
         PyErr_Clear();
