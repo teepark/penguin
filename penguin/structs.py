@@ -26,3 +26,6 @@ seminfo = collections.namedtuple("seminfo",
         "semmap semmni semmns semmnu semmsl semopm semume semusz semvmx semaem")
 shm_info = collections.namedtuple("shm_info",
         "used_ids shm_tot shm_rss shm_swp")
+
+mq_attr = collections.namedtuple("mq_attr",
+        "mq_flags mq_maxmsg mq_msgsize mq_curmsgs")

@@ -1039,7 +1039,7 @@ static PyTypeObject python_shm_type = {
 #if PY_MAJOR_VERSION < 3
     0,                                         /* ob_size */
 #endif
-    "penguin.sysvipc.shm",                     /* tp_name */
+    "penguin.sysv_ipc.shm",                    /* tp_name */
     sizeof(python_shm_object),                 /* tp_basicsize */
     0,                                         /* tp_itemsize */
     (destructor)python_shm_dealloc,            /* tp_dealloc */
@@ -1452,23 +1452,23 @@ this function actually uses semtimedop(2), to power the timeout\n\
 
 #if PY_MAJOR_VERSION >= 3
 
-static struct PyModuleDef sysvipc_module = {
+static struct PyModuleDef sysv_ipc_module = {
     PyModuleDef_HEAD_INIT,
-    "penguin.sysvipc",
+    "penguin.sysv_ipc",
     "",
     -1, module_methods,
     NULL, NULL, NULL, NULL
 };
 
 PyMODINIT_FUNC
-PyInit_sysvipc(void) {
-    PyObject *module = PyModule_Create(&sysvipc_module);
+PyInit_sysv_ipc(void) {
+    PyObject *module = PyModule_Create(&sysv_ipc_module);
 
 #else
 
 PyMODINIT_FUNC
-initsysvipc(void) {
-    PyObject *module = Py_InitModule("penguin.sysvipc", module_methods);
+initsysv_ipc(void) {
+    PyObject *module = Py_InitModule("penguin.sysv_ipc", module_methods);
 
 #endif
 

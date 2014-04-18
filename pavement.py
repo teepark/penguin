@@ -30,9 +30,13 @@ setup(
             ['src/linux_kaio.c'],
             extra_compile_args=["-I.", "-idirafter", "./src/missing-headers"],
             extra_link_args=['-laio']),
-        Extension('penguin.sysvipc',
-            ['src/sysvipc.c'],
+        Extension('penguin.sysv_ipc',
+            ['src/sysv_ipc.c'],
             extra_compile_args=["-I."]),
+        Extension('penguin.posix_ipc',
+            ['src/posix_ipc.c'],
+            extra_compile_args=["-I."],
+            extra_link_args=['-lrt']),
     ],
 )
 
