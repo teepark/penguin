@@ -8,6 +8,25 @@
 static PyObject *py_mq_attr = NULL;
 
 
+static long msgsize_max;
+#define MSGSIZE_MAX msgsize_max > 0 ? msgsize_max : 8192
+
+static void
+get_msgsizemax(void) {
+    FILE *fp;
+    char buf[4096], *ptr = &buf[0];
+    size_t len;
+
+    if (NULL == (fp = fopen("/proc/sys/fs/mqueue/msgsize_max", "r"))) {
+        msgsize_max = -1;
+        return;
+    }
+
+    len = fread(ptr, 1, 4095, fp);
+    ptr[len] = 0;
+    msgsize_max = strtol(ptr, NULL, 10);
+}
+
 static int
 pytolong(PyObject *obj, long *target) {
     if (PyInt_Check(obj)) {
@@ -83,7 +102,7 @@ static char *mqopen_kwargs[] = {"name", "flags", "mode", "attr", NULL};
 static PyObject *
 python_mq_open(PyObject *module, PyObject *args, PyObject *kwargs) {
     char *name;
-    int flags = 0;
+    int flags = O_RDONLY;
     unsigned int mode = 0;
     PyObject *pyattr = Py_None;
     int result;
@@ -177,7 +196,7 @@ python_mq_receive(PyObject *module, PyObject *args, PyObject *kwargs) {
     int mqdes;
     double dtimeout = -1;
     struct timespec timeout;
-    size_t size = 8192;
+    size_t size = MSGSIZE_MAX;
     ssize_t received;
     unsigned int prio;
     PyObject *obj, *result;
@@ -289,21 +308,133 @@ python_mq_notify(PyObject *module, PyObject *args, PyObject *kwargs) {
 
 static PyMethodDef module_methods[] = {
     {"mq_open", (PyCFunction)python_mq_open, METH_VARARGS | METH_KEYWORDS,
-        ""},
+        "open and/or create a message queue\n\
+\n\
+this is a thin wrapper over mq_open(3). see the man page for specific details\n\
+\n\
+:param str name: name of the queue, must start with \"/\"\n\
+\n\
+:param int flags:\n\
+    optional bitwise ORed flags detailing how to open the message queue.\n\
+    defaults to just ``O_RDONLY``.\n\
+\n\
+:param int mode:\n\
+    optional permissions bits for newly-created queues (therefore only\n\
+    relevant if ``O_CREAT`` is included in ``flags``).\n\
+\n\
+:param tuple attr:\n\
+    optional queue attribute four-tuple to set attributes if newly creating\n\
+    a queue. see :func:`mq_getattr` for a description, though ``mq_curmsgs``\n\
+    obviously has no effect here.\n\
+\n\
+:returns:\n\
+    an integer message queue descriptor for use in other mq_* functions.\n\
+"},
     {"mq_close", (PyCFunction)python_mq_close, METH_VARARGS,
-        ""},
+        "close a message queue descriptor\n\
+\n\
+see the man page for mq_close(3) for more details.\n\
+\n\
+:param int mqdes: message queue descriptor as returned by :func:`mq_open`\n\
+"},
     {"mq_unlink", (PyCFunction)python_mq_unlink, METH_VARARGS,
-        ""},
+        "remove a message queue from the system\n\
+\n\
+see the mq_unlink(3) man page for more details.\n\
+\n\
+:param str name: the name of the message queue, must start with \"/\"\n\
+"},
     {"mq_send", (PyCFunction)python_mq_send, METH_VARARGS | METH_KEYWORDS,
-        ""},
+        "send a message to a queue\n\
+\n\
+this wraps the C functions mq_send(3) or mq_timedsend(3). see the man pages\n\
+for more details.\n\
+\n\
+:param int mqdes:\n\
+    the message queue descriptor, as returned by :func:`mq_open`\n\
+\n\
+:param str msg: the string message to send\n\
+\n\
+:param int msg_prio:\n\
+    optional nonnegative priority with which to send the message (greater\n\
+    number means higher priority). defaults to 0.\n\
+\n\
+:param float timeout:\n\
+    optional maximum time to block, in the event that the message queue is\n\
+    already full and wasn't :func:`mq_open`\'d with ``O_NONBLOCK``.\n\
+"},
     {"mq_receive", (PyCFunction)python_mq_receive, METH_VARARGS | METH_KEYWORDS,
-        ""},
+        "pull a message off of a queue\n\
+\n\
+see the mq_receive(3) and mq_timedreceive(3) man pages for more details.\n\
+\n\
+:param int mqdes: the queue descriptor, from :func:`mq_open`.\n\
+\n\
+:param float timeout: optional maximum time to block waiting.\n\
+\n\
+:param int sizehint:\n\
+    optional maximum message size to support. defaults to the highest\n\
+    ``msgsize_max`` that the system will allow, but the max message size for\n\
+    this individual queue might have been set differently, in which case\n\
+    less memory could be used.\n\
+\n\
+:returns:\n\
+    a two-tuple of the priority with which the message was sent and the\n\
+    string message itself.\n\
+"},
     {"mq_getattr", (PyCFunction)python_mq_getattr, METH_VARARGS,
-        ""},
+        "get the properties of a message queue and its descriptor\n\
+\n\
+see the man page for mq_getattr(3) for more details.\n\
+\n\
+:param int mqdes: descriptor to query, as returned by :func:`mq_open`.\n\
+\n\
+:returns:\n\
+    a four-tuple containing:\n\
+\n\
+    ``mq_flags``:\n\
+        0 or ``O_NONBLOCK`` for the descriptor\n\
+    ``mq_maxmsg``:\n\
+        max # of messages this queue supports\n\
+    ``mq_msgsize``:\n\
+        maximum size (in bytes) of the messages on the queue\n\
+    ``mq_curmsgs``:\n\
+        current number of messages on the queue\n\
+\n\
+    a :class:`mq_attr<penguin.structs.mq_attr>` instance is actually\n\
+    returned, which is a namedtuple wrapper.\n\
+"},
     {"mq_setattr", (PyCFunction)python_mq_setattr, METH_VARARGS,
-        ""},
+        "set attrbutes of a queue\n\
+\n\
+see the mq_setattr(3) man page for more detail.\n\
+\n\
+:param int mqdes: the queue descriptor (as returned by :func:`mq_open`).\n\
+\n\
+:param tuple attr:\n\
+    an attribute four-tuple (as returned by :func:`mq_getattr`), however the\n\
+    only field that can be changed is ``mq_flags``. the rest are ignored.\n\
+\n\
+:returns:\n\
+    an attribute four-tuple (actually\n\
+    :class:`mq_attr<penguin.structs.mq_attr>`) representing the attributes\n\
+    before this change.\n\
+"},
     {"mq_notify", (PyCFunction)python_mq_notify, METH_VARARGS | METH_KEYWORDS,
-        ""},
+        "[de]register for notification when a message is available\n\
+\n\
+this is a wrapper for the C function mq_notify(3), more detailed information\n\
+is available in the man page, however this wrapper simplifies the method\n\
+signature a bit.\n\
+\n\
+:param int mqdes: queue descriptor (as returned by :func:`mq_open`).\n\
+\n\
+:param int signo:\n\
+    0, or a signal number. If the former case this process will be\n\
+    unregistered as notification target if it is already registered, and in\n\
+    the latter case it will register using ``SIGEV_SIGNAL`` and the given\n\
+    signal number.\n\
+"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -327,6 +458,8 @@ initposix_ipc(void) {
     PyObject *module = Py_InitModule("penguin.posix_ipc", module_methods);
 
 #endif
+
+    get_msgsizemax();
 
     PyObject *structs = PyImport_ImportModule("penguin.structs");
 
