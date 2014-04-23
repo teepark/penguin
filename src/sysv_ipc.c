@@ -1546,7 +1546,7 @@ initsysv_ipc(void) {
         PyErr_Clear();
 
     PyType_Ready(&python_shm_type);
-
+    PyModule_AddObject(module, "_shm_type", (PyObject *)&python_shm_type);
 
 
 #if PY_MAJOR_VERSION >= 3
