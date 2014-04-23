@@ -833,7 +833,7 @@ static struct PyModuleDef posix_ipc_module = {
     NULL, NULL, NULL, NULL
 };
 
-PYMODINIT_FUNC
+PyMODINIT_FUNC
 PyInit_posix_ipc(void) {
     PyObject *module = PyModule_Create(&posix_ipc_module);
 

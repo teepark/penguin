@@ -1027,10 +1027,12 @@ python_shmbuf_getbuf(python_shm_object *self, Py_buffer *buf, int flags) {
 }
 
 static PyBufferProcs python_shmbuf = {
+#if PY_MAJOR_VERSION < 3
     (readbufferproc)python_shmbuf_getreadbuf,
     (writebufferproc)python_shmbuf_getwritebuf,
     (segcountproc)python_shmbuf_segcount,
     (charbufferproc)python_shmbuf_getbuf,
+#endif
     (getbufferproc)python_shmbuf_getbuf
 };
 
@@ -1058,7 +1060,11 @@ static PyTypeObject python_shm_type = {
     0,                                         /* tp_setattro */
     &python_shmbuf,                            /* tp_as_buffer */
     Py_TPFLAGS_DEFAULT |
+#if PY_MAJOR_VERSION < 3
     Py_TPFLAGS_HAVE_NEWBUFFER,                 /* tp_flags */
+#else
+    0,                                         /* tp_flags */
+#endif
     0,                                         /* tp_doc */
     0,                                         /* tp_traverse */
     0,                                         /* tp_clear */

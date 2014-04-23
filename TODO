@@ -1,6 +1,0 @@
-- "svipc" module supporting System V IPC constructs
-  - msgget(2)
-  - msgctl(2)
-  - msgsnd(2)
-  - msgrcv(2)
-  - this probably needs a higher-level interface, especially with msgctl(2)
