@@ -7,5 +7,6 @@ dist/*
 venv/*
 MANIFEST.in
 *.so
+docs/build
 
 objgraph.py

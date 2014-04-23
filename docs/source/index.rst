@@ -15,6 +15,8 @@ Contents:
     penguin/signals
     penguin/posix_aio
     penguin/linux_kaio
+    penguin/sysv_ipc
+    penguin/posix_ipc
 
 
 Indices and tables
