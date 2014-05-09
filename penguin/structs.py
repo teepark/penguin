@@ -29,3 +29,5 @@ shm_info = collections.namedtuple("shm_info",
 
 mq_attr = collections.namedtuple("mq_attr",
         "mq_flags mq_maxmsg mq_msgsize mq_curmsgs")
+
+inotify_event = collections.namedtuple("inotify_event", "wd mask cookie name")

@@ -12,6 +12,9 @@
 #ifdef __NR_signalfd
     #include <sys/signalfd.h>
 #endif
+#ifdef __NR_inotify_init
+    #include <sys/inotify.h>
+#endif
 
 
 /*
@@ -19,15 +22,17 @@
  */
 
 #ifdef __NR_eventfd
+static char *eventfd_kwargs[] = {"initval", "flags", NULL};
+
 static PyObject *
-python_eventfd(PyObject *module, PyObject *args) {
+python_eventfd(PyObject *module, PyObject *args, PyObject *kwargs) {
     unsigned int initval = 0;
     int fd, flags = 0;
 
 #ifdef __NR_eventfd2
-    if (!PyArg_ParseTuple(args, "|Ii", &initval, &flags))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Ii", eventfd_kwargs,
+                &initval, &flags))
 #else
-    flags = 0;
     if (!PyArg_ParseTuple(args, "|I", &initval))
 #endif
         return NULL;
@@ -102,6 +107,7 @@ python_write_eventfd(PyObject *module, PyObject *args) {
 /* set this to penguin.structs.itimerspec at c module import time */
 static PyObject *PyItimerspec = NULL;
 static PyObject *PySiginfo = NULL;
+static PyObject *PyInotifyEvent = NULL;
 
 #ifdef __NR_timerfd_create
 static PyObject *
@@ -340,12 +346,133 @@ python_read_signalfd(PyObject *module, PyObject *args) {
 
 
 /*
+ * inotify
+ */
+
+# ifdef __NR_inotify_init
+
+static char *inotify_init_kwargs[] = {"flags", NULL};
+
+static PyObject *
+python_inotify_init(PyObject *module, PyObject *args, PyObject *kwargs) {
+    int result, flags = 0;
+
+#ifdef __NR_inotify_init1
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|i", inotify_init_kwargs,
+                &flags))
+        return NULL;
+
+    if ((result = inotify_init1(flags)) < 0) {
+#else
+    if ((result = inotify_init()) < 0) {
+#endif
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)result);
+}
+
+static PyObject *
+python_inotify_add_watch(PyObject *module, PyObject *args) {
+    int result, fd, mask;
+    char *pathname;
+
+    if (!PyArg_ParseTuple(args, "isi", &fd, &pathname, &mask))
+        return NULL;
+
+    if ((result = inotify_add_watch(fd, pathname, (uint32_t)mask)) < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return PyInt_FromLong((long)result);
+}
+
+static PyObject *
+wrap_inotify_event(struct inotify_event *in_evp) {
+    PyObject *obj, *args, *pyev;
+    if (NULL == (args = PyTuple_New(4))) return NULL;
+
+    if (NULL == (obj = PyInt_FromLong((long)in_evp->wd)))
+        goto fail;
+    PyTuple_SET_ITEM(args, 0, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)in_evp->mask)))
+        goto fail;
+    PyTuple_SET_ITEM(args, 1, obj);
+
+    if (NULL == (obj = PyInt_FromLong((long)in_evp->cookie)))
+        goto fail;
+    PyTuple_SET_ITEM(args, 2, obj);
+
+    if (0 == in_evp->len) {
+        Py_INCREF(Py_None);
+        PyTuple_SET_ITEM(args, 3, Py_None);
+    } else {
+        if (NULL == (obj = PyString_FromString(&in_evp->name[0])))
+            goto fail;
+        PyTuple_SET_ITEM(args, 3, obj);
+    }
+
+    pyev = PyObject_Call(PyInotifyEvent, args, NULL);
+    Py_DECREF(args);
+    return pyev;
+
+fail:
+    Py_DECREF(args);
+    return NULL;
+}
+
+static PyObject *
+python_read_inotify_event(PyObject *module, PyObject *args) {
+    int fd;
+    ssize_t length;
+    size_t size = sizeof(struct inotify_event) + NAME_MAX + 1;
+    char buf[size], *p = &buf[0];
+    struct inotify_event *in_evp = (struct inotify_event *)&buf[0];
+
+    if (!PyArg_ParseTuple(args, "i", &fd))
+        return NULL;
+
+    Py_BEGIN_ALLOW_THREADS
+    length = read(fd, p, size);
+    Py_END_ALLOW_THREADS
+
+    if (length < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    return wrap_inotify_event(in_evp);
+}
+
+static PyObject *
+python_inotify_rm_watch(PyObject *module, PyObject *args) {
+    int fd, wd;
+
+    if (!PyArg_ParseTuple(args, "ii", &fd, &wd))
+        return NULL;
+
+    if (inotify_rm_watch(fd, wd) < 0) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return NULL;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+#endif
+
+
+/*
  * module
  */
 
 static PyMethodDef methods[] = {
 #ifdef __NR_eventfd
-    {"eventfd", python_eventfd, METH_VARARGS,
+    {"eventfd", (PyCFunction)python_eventfd, METH_VARARGS | METH_KEYWORDS,
         "create a file descriptor for event notification\n\
 \n\
 see `man 2 eventfd` for more complete documentation\n\
@@ -454,6 +581,52 @@ see `man eventfd` for exactly what this does\n\
     a two-tuple representing the signal it received, (signum, reason_code)"},
 #endif
 
+#ifdef __NR_inotify_init
+    {"inotify_init", (PyCFunction)python_inotify_init, METH_VARARGS | METH_KEYWORDS,
+        "create a new inotify instance\n\
+\n\
+:param int flags:\n\
+    bitwise ORed flags for customizing the new inotify instance. this option\n\
+    is only available in linux since version 2.6.27 (inotify_init1).\n\
+\n\
+:returns:\n\
+    a file descriptor integer for the new inotify instance.\n\
+"},
+
+    {"inotify_add_watch", python_inotify_add_watch, METH_VARARGS,
+        "add or modify a watch on an inotify instance\n\
+\n\
+:param int fd: file descriptor of the inotify instance\n\
+\n\
+:param str pathname: path of the file or directory to watch\n\
+\n\
+:param int mask:\n\
+    bitwise ORed event flags of the events to watch for\n\
+\n\
+:returns:\n\
+    an integer watch descriptor for the added (or updated, if there was\n\
+    already a watch for the pathname) watch\n\
+"},
+
+    {"read_inotify_event", python_read_inotify_event, METH_VARARGS,
+        "read an event struct from an inotify instance\n\
+\n\
+:param int fd: file descriptor of the inotify instance\n\
+\n\
+:returns:\n\
+    a :class:`inotify_event<penguin.structs.inotify_event>` populated with\n\
+    the information from the event.\n\
+"},
+
+    {"inotify_rm_watch", python_inotify_rm_watch, METH_VARARGS,
+        "remove a watch from an inotify instance\n\
+\n\
+:param int fd: integer file descriptor for the inotify instance\n\
+\n\
+:param int wd: integer file descriptor for the watch to remove\n\
+"},
+#endif
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -485,6 +658,9 @@ initfds(void) {
 
     if (NULL != datatypes && PyObject_HasAttrString(datatypes, "siginfo"))
         PySiginfo = PyObject_GetAttrString(datatypes, "siginfo");
+
+    if (NULL != datatypes && PyObject_HasAttrString(datatypes, "inotify_event"))
+        PyInotifyEvent = PyObject_GetAttrString(datatypes, "inotify_event");
 
     if (NULL == datatypes)
         PyErr_Clear();
@@ -540,6 +716,73 @@ initfds(void) {
 #endif
 #ifdef SI_TKILL
     PyModule_AddIntConstant(module, "SI_TKILL", SI_TKILL);
+#endif
+
+#ifdef IN_ACCESS
+    PyModule_AddIntConstant(module, "IN_ACCESS", IN_ACCESS);
+#endif
+#ifdef IN_ATTRIB
+    PyModule_AddIntConstant(module, "IN_ATTRIB", IN_ATTRIB);
+#endif
+#ifdef IN_CLOSE_WRITE
+    PyModule_AddIntConstant(module, "IN_CLOSE_WRITE", IN_CLOSE_WRITE);
+#endif
+#ifdef IN_CLOSE_NOWRITE
+    PyModule_AddIntConstant(module, "IN_CLOSE_NOWRITE", IN_CLOSE_NOWRITE);
+#endif
+#ifdef IN_CREATE
+    PyModule_AddIntConstant(module, "IN_CREATE", IN_CREATE);
+#endif
+#ifdef IN_DELETE
+    PyModule_AddIntConstant(module, "IN_DELETE", IN_DELETE);
+#endif
+#ifdef IN_DELETE_SELF
+    PyModule_AddIntConstant(module, "IN_DELETE_SELF", IN_DELETE_SELF);
+#endif
+#ifdef IN_MODIFY
+    PyModule_AddIntConstant(module, "IN_MODIFY", IN_MODIFY);
+#endif
+#ifdef IN_MOVE_SELF
+    PyModule_AddIntConstant(module, "IN_MOVE_SELF", IN_MOVE_SELF);
+#endif
+#ifdef IN_MOVED_FROM
+    PyModule_AddIntConstant(module, "IN_MOVED_FROM", IN_MOVED_FROM);
+#endif
+#ifdef IN_MOVED_TO
+    PyModule_AddIntConstant(module, "IN_MOVED_TO", IN_MOVED_TO);
+#endif
+#ifdef IN_OPEN
+    PyModule_AddIntConstant(module, "IN_OPEN", IN_OPEN);
+#endif
+#ifdef IN_ALL_EVENTS
+    PyModule_AddIntConstant(module, "IN_ALL_EVENTS", IN_ALL_EVENTS);
+#endif
+#ifdef IN_DONT_FOLLOW
+    PyModule_AddIntConstant(module, "IN_DONT_FOLLOW", IN_DONT_FOLLOW);
+#endif
+#ifdef IN_EXCL_UNLINK
+    PyModule_AddIntConstant(module, "IN_EXCL_UNLINK", IN_EXCL_UNLINK);
+#endif
+#ifdef IN_MASK_ADD
+    PyModule_AddIntConstant(module, "IN_MASK_ADD", IN_MASK_ADD);
+#endif
+#ifdef IN_ONESHOT
+    PyModule_AddIntConstant(module, "IN_ONESHOT", IN_ONESHOT);
+#endif
+#ifdef IN_ONLYDIR
+    PyModule_AddIntConstant(module, "IN_ONLYDIR", IN_ONLYDIR);
+#endif
+#ifdef IN_IGNORED
+    PyModule_AddIntConstant(module, "IN_IGNORED", IN_IGNORED);
+#endif
+#ifdef IN_ISDIR
+    PyModule_AddIntConstant(module, "IN_ISDIR", IN_ISDIR);
+#endif
+#ifdef IN_Q_OVERFLOW
+    PyModule_AddIntConstant(module, "IN_Q_OVERFLOW", IN_Q_OVERFLOW);
+#endif
+#ifdef IN_UNMOUNT
+    PyModule_AddIntConstant(module, "IN_UNMOUNT", IN_UNMOUNT);
 #endif
 
 #if PY_MAJOR_VERSION >= 3
