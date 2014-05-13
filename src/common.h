@@ -6,5 +6,6 @@
     #define PyInt_AsLong               PyLong_AsLong
     #define PyNumber_Int               PyNumber_Long
     #define PyString_FromStringAndSize PyBytes_FromStringAndSize
+    #define PyString_FromString        PyBytes_FromString
     #define PyInt_Check(o)             0
 #endif

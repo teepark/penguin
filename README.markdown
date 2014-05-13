@@ -4,7 +4,8 @@ aren't exposed in python's standard library.
 
 so far we have:
 
-- ``penguin.fds``: eventfd, timerfd, signalfd related functions
+- ``penguin.fds``: eventfd, timerfd, signalfd and inotify related
+    functions
 - ``penguin.signals``: exposing signalfd necessitated availability
     of sigprocmask, so here it is
 - ``penguin.posix_aio``: the POSIX async file IO api, implemented in
