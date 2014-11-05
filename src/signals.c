@@ -2,7 +2,6 @@
 
 #include <signal.h>
 #include <unistd.h>
-#include <asm/unistd.h>
 
 #if _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
 static int SIGNAL_COUNT = 0;
