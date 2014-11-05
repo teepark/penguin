@@ -217,6 +217,8 @@ pythonify_semarray(unsigned short *semvals, unsigned long count) {
     return result;
 }
 
+#ifdef IPC_INFO
+
 static PyObject *
 pythonify_msginfo(struct msginfo *info) {
     PyObject *obj, *args, *result = NULL;
@@ -262,6 +264,8 @@ done:
     Py_DECREF(args);
     return result;
 }
+
+#endif
 
 static PyObject *
 pythonify_seminfo(struct seminfo *info) {
@@ -546,7 +550,9 @@ python_msgctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     PyObject *setinfo = NULL;
     struct msqid_ds mqds;
     struct msqid_ds *mqdsp = &mqds;
+#ifdef IPC_INFO
     struct msginfo mi;
+#endif
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|O", msgctl_kwargs,
                 &mqid, &cmd, &setinfo))
