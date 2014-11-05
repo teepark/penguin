@@ -11,7 +11,7 @@ VERSION = (0, 2, 0, "")
 setup(
     name="penguin",
     description="bindings to additional linux syscalls and C libraries",
-    version=','.join(filter(None, map(str, VERSION))),
+    version='.'.join(filter(None, map(str, VERSION))),
     author="Travis Parker",
     author_email="travis.parker@gmail.com",
     packages=["penguin"],
