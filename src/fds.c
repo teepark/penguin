@@ -784,6 +784,12 @@ initfds(void) {
 #ifdef IN_UNMOUNT
     PyModule_AddIntConstant(module, "IN_UNMOUNT", IN_UNMOUNT);
 #endif
+#ifdef IN_NONBLOCK
+	PyModule_AddIntConstant(module, "IN_NONBLOCK", IN_NONBLOCK);
+#endif
+#ifdef IN_CLOEXEC
+	PyModule_AddIntConstant(module, "IN_CLOEXEC", IN_CLOEXEC);
+#endif
 
 #if PY_MAJOR_VERSION >= 3
     return module;
