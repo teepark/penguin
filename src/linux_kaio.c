@@ -594,12 +594,14 @@ static struct PyModuleDef linux_kaio_module = {
 
 PyMODINIT_FUNC
 PyInit_linux_kaio(void) {
-    if (PyType_Ready(&python_iocontext_type)) return NULL;
     PyObject *module = PyModule_Create(&linux_kaio_module);
-    alignment_size();
-    PyModule_AddIntConstant(module, "ALIGN_TO", align_to);
+#ifndef LIBAIO_H_MISSING
+    if (PyType_Ready(&python_iocontext_type)) return NULL;
     PyModule_AddObject(module, "iocontext",
             (PyObject *)(&python_iocontext_type));
+#endif
+    alignment_size();
+    PyModule_AddIntConstant(module, "ALIGN_TO", align_to);
     return module;
 }
 
@@ -607,12 +609,14 @@ PyInit_linux_kaio(void) {
 
 PyMODINIT_FUNC
 initlinux_kaio(void) {
-    if (PyType_Ready(&python_iocontext_type)) return;
     PyObject *module = Py_InitModule("penguin.linux_kaio", module_methods);
-    alignment_size();
-    PyModule_AddIntConstant(module, "ALIGN_TO", align_to);
+#ifndef LIBAIO_H_MISSING
+    if (PyType_Ready(&python_iocontext_type)) return;
     PyModule_AddObject(module, "iocontext",
             (PyObject *)(&python_iocontext_type));
+#endif
+    alignment_size();
+    PyModule_AddIntConstant(module, "ALIGN_TO", align_to);
 };
 
 #endif
