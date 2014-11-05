@@ -2,7 +2,6 @@
 
 #include <signal.h>
 #include <unistd.h>
-#include <asm/unistd.h>
 #ifdef __NR_eventfd
     #include <sys/eventfd.h>
 #endif
@@ -11,6 +10,7 @@
 #endif
 #ifdef __NR_signalfd
     #include <sys/signalfd.h>
+    #include <asm/unistd.h>
 #endif
 #ifdef __NR_inotify_init
     #include <sys/inotify.h>
@@ -220,6 +220,7 @@ python_timerfd_gettime(PyObject *module, PyObject *args) {
 #endif /* __NR_timerfd_create */
 
 
+#ifdef __NR_signalfd
 /*
  * signalfd
  */
@@ -292,7 +293,6 @@ unwrap_siginfo(struct signalfd_siginfo *info) {
     return result;
 }
 
-#ifdef __NR_signalfd
 static PyObject *
 python_signalfd(PyObject *module, PyObject *args) {
     int fd, flags = 0;
