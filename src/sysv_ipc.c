@@ -224,6 +224,8 @@ pythonify_semarray(unsigned short *semvals, unsigned long count) {
 }
 
 #ifdef _GNU_SOURCE
+#ifdef IPC_INFO
+#ifdef __GLIBC__
 
 static PyObject *
 pythonify_msginfo(struct msginfo *info) {
@@ -272,6 +274,12 @@ done:
 }
 
 #endif
+#endif
+#endif
+
+#ifdef _GNU_SOURCE
+#ifdef SEM_INFO
+#ifdef __GLIBC
 
 static PyObject *
 pythonify_seminfo(struct seminfo *info) {
@@ -326,6 +334,10 @@ done:
     Py_DECREF(args);
     return result;
 }
+
+#endif
+#endif
+#endif
 
 static PyObject *
 pythonify_shminfo(struct shm_info *info) {
