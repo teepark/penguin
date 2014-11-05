@@ -21,6 +21,12 @@ static PyObject *PyShmInfo = NULL;
 /* memory page size. this will be the default max size for msgrcv */
 static int pagesize;
 
+#ifdef __GLIBC__
+	#define key __key
+	#define seq __seq
+	#define msg_cbytes __msg_cbytes
+#endif
+
 
 static PyObject *
 pythonify_ipcperm(struct ipc_perm *perm) {
@@ -28,7 +34,7 @@ pythonify_ipcperm(struct ipc_perm *perm) {
 
     if (NULL == (args = PyTuple_New(7))) return NULL;
 
-    if (NULL == (obj = PyInt_FromLong((long)perm->__key & 0xffffffff)))
+    if (NULL == (obj = PyInt_FromLong((long)perm->key & 0xffffffff)))
         goto fail;
     PyTuple_SET_ITEM(args, 0, obj);
 
@@ -52,7 +58,7 @@ pythonify_ipcperm(struct ipc_perm *perm) {
         goto fail;
     PyTuple_SET_ITEM(args, 5, obj);
 
-    if (NULL == (obj = PyInt_FromLong((long)perm->__seq)))
+    if (NULL == (obj = PyInt_FromLong((long)perm->seq)))
         goto fail;
     PyTuple_SET_ITEM(args, 6, obj);
 
@@ -90,7 +96,7 @@ pythonify_mqds(struct msqid_ds *mqds) {
         goto fail;
     PyTuple_SET_ITEM(args, 3, obj);
 
-    if (NULL == (obj = PyLong_FromUnsignedLong(mqds->__msg_cbytes)))
+    if (NULL == (obj = PyLong_FromUnsignedLong(mqds->msg_cbytes)))
         goto fail;
     PyTuple_SET_ITEM(args, 4, obj);
 
