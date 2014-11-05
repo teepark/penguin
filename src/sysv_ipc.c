@@ -223,7 +223,7 @@ pythonify_semarray(unsigned short *semvals, unsigned long count) {
     return result;
 }
 
-#ifdef IPC_INFO
+#ifdef _GNU_SOURCE
 
 static PyObject *
 pythonify_msginfo(struct msginfo *info) {
