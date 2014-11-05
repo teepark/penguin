@@ -27,6 +27,8 @@ static int pagesize;
 	#define msg_cbytes __msg_cbytes
 
 	#ifdef _GNU_SOURCE
+		#define USE_SEMTIMEDOP
+
 		#ifdef IPC_INFO
 			#define USE_IPC_INFO
 		#endif
@@ -765,7 +767,9 @@ union semun {
     int val;
     struct semid_ds *buf;
     unsigned short *array;
+#ifdef USE_SEM_INFO
     struct seminfo *__buf;
+#endif
 };
 
 static char *semctl_kwargs[] = {"id", "cmd", "semnum", "arg", "sizehint", NULL};
@@ -776,7 +780,9 @@ python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     long nsems = -1;
     PyObject *info = NULL;
     struct semid_ds sds;
+#ifdef USE_SEM_INFO
     struct seminfo si;
+#endif
     union semun sun;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|iOl", semctl_kwargs,
@@ -874,12 +880,17 @@ python_semop(PyObject *module, PyObject *args, PyObject *kwargs) {
     int semid;
     PyObject *pyops;
     long len;
+#ifdef USE_SEMTIMEDOP
     double dtimeout = -1;
     struct timespec timeout;
     struct timespec *timeoutp = &timeout;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO|d", semop_kwargs,
                 &semid, &pyops, &dtimeout))
+#else
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO", semop_kwargs,
+                &semid, &pyops))
+#endif
         return NULL;
 
     if ((len = PyObject_Length(pyops)) < 0) {
@@ -891,6 +902,7 @@ python_semop(PyObject *module, PyObject *args, PyObject *kwargs) {
     semops ops = {(unsigned int)len, &bufs[0]};
     if (unpythonify_semops(pyops, &ops) < 0) return NULL;
 
+#ifdef USE_SEMTIMEDOP
     if (dtimeout > 0) {
         if (timespec_ify(dtimeout, timeoutp)) {
             PyErr_SetString(PyExc_ValueError, "issue with timeout float");
@@ -900,6 +912,9 @@ python_semop(PyObject *module, PyObject *args, PyObject *kwargs) {
         timeoutp = NULL;
 
     if (semtimedop(semid, ops.ops, (unsigned int)len, timeoutp) < 0) {
+#else
+    if (semop(semid, ops.ops, (unsigned int)len) < 0) {
+#endif
         PyErr_SetFromErrno(PyExc_OSError);
         return NULL;
     }
@@ -947,7 +962,9 @@ python_shmctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     int shmid, cmd;
     PyObject *pyinfo = NULL;
     struct shmid_ds sds;
+#ifdef USE_SHM_INFO
     struct shm_info si;
+#endif
     struct shmid_ds *sdsp = &sds;
     int result;
     
@@ -1519,7 +1536,9 @@ initsysv_ipc(void) {
     PyModule_AddIntConstant(module, "IPC_SET", IPC_SET);
     PyModule_AddIntConstant(module, "IPC_RMID", IPC_RMID);
 
+#ifdef MSG_EXCEPT
     PyModule_AddIntConstant(module, "MSG_EXCEPT", MSG_EXCEPT);
+#endif
     PyModule_AddIntConstant(module, "MSG_NOERROR", MSG_NOERROR);
 
     PyModule_AddIntConstant(module, "SEM_UNDO", SEM_UNDO);
@@ -1532,7 +1551,9 @@ initsysv_ipc(void) {
     PyModule_AddIntConstant(module, "SETVAL", SETVAL);
 
     PyModule_AddIntConstant(module, "SHM_RDONLY", SHM_RDONLY);
+#ifdef SHM_DEST
     PyModule_AddIntConstant(module, "SHM_DEST", SHM_DEST);
+#endif
 #ifdef USE_SHM_INFO
     PyModule_AddIntConstant(module, "SHM_INFO", SHM_INFO);
 #endif
