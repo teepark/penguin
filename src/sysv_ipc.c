@@ -25,6 +25,18 @@ static int pagesize;
 	#define key __key
 	#define seq __seq
 	#define msg_cbytes __msg_cbytes
+
+	#ifdef _GNU_SOURCE
+		#ifdef IPC_INFO
+			#define USE_IPC_INFO
+		#endif
+		#ifdef SEM_INFO
+			#define USE_SEM_INFO
+		#endif
+		#ifdef SHM_INFO
+			#define USE_SHM_INFO
+		#endif
+	#endif
 #endif
 
 
@@ -223,10 +235,7 @@ pythonify_semarray(unsigned short *semvals, unsigned long count) {
     return result;
 }
 
-#ifdef _GNU_SOURCE
-#ifdef __GLIBC__
-
-#ifdef IPC_INFO
+#ifdef USE_IPC_INFO
 
 static PyObject *
 pythonify_msginfo(struct msginfo *info) {
@@ -275,7 +284,7 @@ done:
 }
 
 #endif
-#ifdef SEM_INFO
+#ifdef USE_SEM_INFO
 
 static PyObject *
 pythonify_seminfo(struct seminfo *info) {
@@ -332,7 +341,7 @@ done:
 }
 
 #endif
-#ifdef SHM_INFO
+#ifdef USE_SHM_INFO
 
 static PyObject *
 pythonify_shminfo(struct shm_info *info) {
@@ -364,8 +373,6 @@ done:
     return result;
 }
 
-#endif
-#endif
 #endif
 
 int
@@ -477,7 +484,7 @@ unpythonify_semops(PyObject *pyops, semops *ops) {
         return -1;
 
     i = 0;
-    while (tuple = PyIter_Next(iter)) {
+    while ((tuple = PyIter_Next(iter))) {
         if (i == ops->count) {
             PyErr_SetString(PyExc_RuntimeError, "overrun");
             return -1;
@@ -540,7 +547,7 @@ unpythonify_semarray(PyObject *pyarray, unsigned short *array) {
     if (NULL == (iter = PyObject_GetIter(pyarray)))
         return -1;
 
-    while (obj = PyIter_Next(iter)) {
+    while ((obj = PyIter_Next(iter))) {
         if (pytolong(obj, &l) < 0) {
             Py_DECREF(obj);
             Py_DECREF(iter);
@@ -567,7 +574,7 @@ python_msgctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     PyObject *setinfo = NULL;
     struct msqid_ds mqds;
     struct msqid_ds *mqdsp = &mqds;
-#ifdef IPC_INFO
+#ifdef USE_IPC_INFO
     struct msginfo mi;
 #endif
 
@@ -577,7 +584,7 @@ python_msgctl(PyObject *self, PyObject *args, PyObject *kwargs) {
 
     if (cmd == IPC_SET && unpythonify_msgsetinfo(setinfo, mqdsp))
         return NULL;
-#ifdef IPC_INFO
+#ifdef USE_IPC_INFO
     if (cmd == IPC_INFO || cmd == MSG_INFO)
         mqdsp = (struct msqid_ds *)&mi;
 #endif
@@ -594,7 +601,7 @@ python_msgctl(PyObject *self, PyObject *args, PyObject *kwargs) {
             )
         return pythonify_mqds(mqdsp);
 
-#ifdef IPC_INFO
+#ifdef USE_IPC_INFO
     if (cmd == IPC_INFO || cmd == MSG_INFO)
         return pythonify_msginfo(&mi);
 #endif
@@ -782,7 +789,7 @@ python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     if (cmd == IPC_SET || cmd == IPC_STAT || cmd == SEM_STAT)
         sun.buf = &sds;
 
-#ifdef IPC_INFO
+#ifdef USE_SEM_INFO
     if (cmd == IPC_INFO || cmd == SEM_INFO)
         sun.__buf = &si;
 #endif
@@ -834,7 +841,7 @@ python_semctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     if (cmd == IPC_STAT || cmd == SEM_STAT)
         return pythonify_sds(&sds);
 
-#ifdef IPC_INFO
+#ifdef USE_SEM_INFO
     if (cmd == IPC_INFO || cmd == SEM_INFO)
         return pythonify_seminfo(&si);
 #endif
@@ -951,7 +958,7 @@ python_shmctl(PyObject *self, PyObject *args, PyObject *kwargs) {
     if (cmd == IPC_SET && unpythonify_shmsetinfo(pyinfo, sdsp))
         return NULL;
 
-#ifdef SHM_INFO
+#ifdef USE_SHM_INFO
     if (cmd == SHM_INFO)
         sdsp = (struct shmid_ds *)&si;
 #endif
@@ -968,7 +975,7 @@ python_shmctl(PyObject *self, PyObject *args, PyObject *kwargs) {
             )
         return pythonify_shmds(sdsp);
 
-#ifdef SHM_INFO
+#ifdef USE_SHM_INFO
     if (cmd == SHM_INFO)
         return pythonify_shminfo(&si);
 #endif
@@ -1526,13 +1533,13 @@ initsysv_ipc(void) {
 
     PyModule_AddIntConstant(module, "SHM_RDONLY", SHM_RDONLY);
     PyModule_AddIntConstant(module, "SHM_DEST", SHM_DEST);
-#ifdef SHM_INFO
+#ifdef USE_SHM_INFO
     PyModule_AddIntConstant(module, "SHM_INFO", SHM_INFO);
 #endif
 #ifdef SHM_STAT
     PyModule_AddIntConstant(module, "SHM_STAT", SHM_STAT);
 #endif
-#ifdef IPC_INFO
+#ifdef USE_IPC_INFO
     PyModule_AddIntConstant(module, "IPC_INFO", IPC_INFO);
 #endif
 #ifdef MSG_INFO
@@ -1541,7 +1548,7 @@ initsysv_ipc(void) {
 #ifdef MSG_STAT
     PyModule_AddIntConstant(module, "MSG_STAT", MSG_STAT);
 #endif
-#ifdef SEM_INFO
+#ifdef USE_SEM_INFO
     PyModule_AddIntConstant(module, "SEM_INFO", SEM_INFO);
 #endif
 #ifdef SEM_STAT
