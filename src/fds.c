@@ -2,26 +2,18 @@
 
 #include <signal.h>
 #include <unistd.h>
-#ifdef __NR_eventfd
-    #include <sys/eventfd.h>
-#endif
-#ifdef __NR_timerfd_create
-    #include <sys/timerfd.h>
-#endif
-#ifdef __NR_signalfd
-    #include <sys/signalfd.h>
-    #include <asm/unistd.h>
-#endif
-#ifdef __NR_inotify_init
-    #include <sys/inotify.h>
-#endif
+#include <sys/eventfd.h>
+#include <sys/timerfd.h>
+#include <sys/signalfd.h>
+#include <asm/unistd.h>
+#include <sys/inotify.h>
 
 
 /*
  * eventfd
  */
 
-#ifdef __NR_eventfd
+#ifndef EVENTFD_MISSING
 static char *eventfd_kwargs[] = {"initval", "flags", NULL};
 
 static PyObject *
@@ -29,12 +21,8 @@ python_eventfd(PyObject *module, PyObject *args, PyObject *kwargs) {
     unsigned int initval = 0;
     int fd, flags = 0;
 
-#ifdef __NR_eventfd2
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Ii", eventfd_kwargs,
                 &initval, &flags))
-#else
-    if (!PyArg_ParseTuple(args, "|I", &initval))
-#endif
         return NULL;
 
     if (!(fd = eventfd(initval, flags))) {
@@ -97,7 +85,7 @@ python_write_eventfd(PyObject *module, PyObject *args) {
     Py_INCREF(Py_None);
     return Py_None;
 }
-#endif /* __NR_eventfd */
+#endif /* EVENTFD_MISSING */
 
 
 /*
@@ -109,7 +97,7 @@ static PyObject *PyItimerspec = NULL;
 static PyObject *PySiginfo = NULL;
 static PyObject *PyInotifyEvent = NULL;
 
-#ifdef __NR_timerfd_create
+#ifndef TIMERFD_MISSING
 static PyObject *
 unwrap_timer(const struct itimerspec *spec) {
     double timeout, interval;
@@ -217,10 +205,10 @@ python_timerfd_gettime(PyObject *module, PyObject *args) {
 
     return unwrap_timer(&spec);
 }
-#endif /* __NR_timerfd_create */
+#endif /* TIMERFD_MISSING */
 
 
-#ifdef __NR_signalfd
+#ifndef SIGNALFD_MISSING
 /*
  * signalfd
  */
@@ -301,11 +289,7 @@ python_signalfd(PyObject *module, PyObject *args) {
 
     sigemptyset(&mask);
 
-#ifdef __NR_signalfd4
     if (!PyArg_ParseTuple(args, "iO|i", &fd, &signals, &flags))
-#else
-    if (!PyArg_ParseTuple(args, "iO", &fd, &signals))
-#endif
         return NULL;
 
     if (wrap_sigset(&mask, signals))
@@ -342,14 +326,14 @@ python_read_signalfd(PyObject *module, PyObject *args) {
 
     return unwrap_siginfo(&info);
 }
-#endif /* __NR_signalfd */
+#endif /* SIGNALFD_MISSING */
 
 
 /*
  * inotify
  */
 
-# ifdef __NR_inotify_init
+# ifndef INOTIFY_MISSING
 
 static char *inotify_init_kwargs[] = {"flags", NULL};
 
@@ -357,15 +341,11 @@ static PyObject *
 python_inotify_init(PyObject *module, PyObject *args, PyObject *kwargs) {
     int result, flags = 0;
 
-#ifdef __NR_inotify_init1
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|i", inotify_init_kwargs,
                 &flags))
         return NULL;
 
     if ((result = inotify_init1(flags)) < 0) {
-#else
-    if ((result = inotify_init()) < 0) {
-#endif
         PyErr_SetFromErrno(PyExc_OSError);
         return NULL;
     }
@@ -471,7 +451,7 @@ python_inotify_rm_watch(PyObject *module, PyObject *args) {
  */
 
 static PyMethodDef methods[] = {
-#ifdef __NR_eventfd
+#ifndef EVENTFD_MISSING
     {"eventfd", (PyCFunction)python_eventfd, METH_VARARGS | METH_KEYWORDS,
         "create a file descriptor for event notification\n\
 \n\
@@ -512,7 +492,7 @@ see `man eventfd` for exactly what this does\n\
 :type value: non-negative int"},
 #endif
 
-#ifdef __NR_timerfd_create
+#ifndef TIMERFD_MISSING
     {"timerfd_create", python_timerfd_create, METH_VARARGS,
         "create a new timer and return a file descriptor that refers to it\n\
 \n\
@@ -556,7 +536,7 @@ see `man eventfd` for exactly what this does\n\
     trigger, interval after that)"},
 #endif
 
-#ifdef __NR_signalfd
+#ifndef SIGNALFD_MISSING
     {"signalfd", python_signalfd, METH_VARARGS,
         "create a file descriptor that can be used to accept signals\n\
 \n\
@@ -581,7 +561,7 @@ see `man eventfd` for exactly what this does\n\
     a two-tuple representing the signal it received, (signum, reason_code)"},
 #endif
 
-#ifdef __NR_inotify_init
+#ifndef INOTIFY_MISSING
     {"inotify_init", (PyCFunction)python_inotify_init, METH_VARARGS | METH_KEYWORDS,
         "create a new inotify instance\n\
 \n\

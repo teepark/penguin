@@ -1,0 +1,1 @@
+#define INOTIFY_MISSING
